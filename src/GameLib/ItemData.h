@@ -236,21 +236,42 @@ class CItemData
 			WEAR_UNIQUE2,       // 8
 			WEAR_ARROW,         // 9
 			WEAR_SHIELD,        // 10
+
+			WEAR_ABILITY1,		//11
+			WEAR_ABILITY2,		//12
+			WEAR_ABILITY3,		//13
+			WEAR_ABILITY4,		//14
+			WEAR_ABILITY5,		//15
+			WEAR_ABILITY6,		//16
+			WEAR_ABILITY7,		//17
+			WEAR_ABILITY8,		//18
+			WEAR_COSTUME_BODY,	//19
+			WEAR_COSTUME_HAIR,	//20
+
+			WEAR_RING1,			//21
+			WEAR_RING2,			//22
+			WEAR_BELT,			//23
+
 			WEAR_MAX_NUM,
 		};
 
 		enum EItemWearableFlag
 		{
-			WEARABLE_BODY       = (1 << 0),
-			WEARABLE_HEAD       = (1 << 1),
-			WEARABLE_FOOTS      = (1 << 2),
-			WEARABLE_WRIST      = (1 << 3),
-			WEARABLE_WEAPON     = (1 << 4),
-			WEARABLE_NECK       = (1 << 5),
-			WEARABLE_EAR        = (1 << 6),
-			WEARABLE_UNIQUE     = (1 << 7),
-			WEARABLE_SHIELD     = (1 << 8),
-			WEARABLE_ARROW      = (1 << 9),
+			WEARABLE_BODY					= (1 << 0),
+			WEARABLE_HEAD					= (1 << 1),
+			WEARABLE_FOOTS					= (1 << 2),
+			WEARABLE_WRIST					= (1 << 3),
+			WEARABLE_WEAPON					= (1 << 4),
+			WEARABLE_NECK					= (1 << 5),
+			WEARABLE_EAR					= (1 << 6),
+			WEARABLE_UNIQUE					= (1 << 7),
+			WEARABLE_SHIELD					= (1 << 8),
+			WEARABLE_ARROW					= (1 << 9),
+			WEARABLE_HAIR					= (1 << 10),
+			WEARABLE_ABILITY 				= (1 << 11),
+			WEARABLE_COSTUME_BODY			= (1 << 12),
+			WEARABLE_COSTUME_HAIR			= (1 << 13),
+			WEARABLE_BELT					= (1 << 14),
 		};
 
 		enum EApplyTypes
