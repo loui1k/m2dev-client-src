@@ -164,6 +164,8 @@ bool PackInitialize(const char * c_pszFolder)
 		"metin2_patch_w20_etc",
 		"metin2_patch_dragon_rock",
 		"metin2_patch_dragon_rock_mobs",
+		"metin2_patch_dragon_rock_texcache",
+		"metin2_patch_dragon_rock_mobs_texcache",
 		"metin2_patch_etc",
 		"metin2_patch_xmas",
 		"metin2_patch_eu3",

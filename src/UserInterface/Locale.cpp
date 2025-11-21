@@ -266,7 +266,7 @@ struct SLOCALEDATA
 	{ LSS_EUROPE,	"it",			1252,	"1234abcd5678efgh"	},		// GameForge (Italy)
 	{ LSS_EUROPE,	"fr",			1252,	"1234abcd5678efgh"	},		// GameForge (France)
 	{ LSS_EUROPE,	"pt",			1252,	"1234abcd5678efgh"	},		// GameForge (Portugal)
-	{ LSS_EUROPE,	"tr",			1253,	"1234abcd5678efgh"	},		// GameForge (Greece)
+	{ LSS_EUROPE,	"gr",			1253,	"1234abcd5678efgh"	},		// GameForge (Greece)
 	{ LSS_EUROPE,	"pl",			1250,	"1234abcd5678efgh"	},		// GameForge (Poland)
 	{ LSS_EUROPE,	"tr",			1254,	"1234abcd5678efgh"	},		// GameForge (Turkey)
 	{ LSS_EUROPE,	"dk",			1252,	"1234abcd5678efgh"	},		// GameForge (Demmark)
