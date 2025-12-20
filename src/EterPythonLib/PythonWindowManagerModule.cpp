@@ -1254,7 +1254,6 @@ PyObject * wndMgrSetSlotCoolTime(PyObject * poSelf, PyObject * poArgs)
 	return Py_BuildNone();
 }
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 PyObject* wndMgrStoreSlotCoolTime(PyObject* poSelf, PyObject* poArgs)
 {
 	UI::CWindow* pWin;
@@ -1326,7 +1325,6 @@ PyObject* wndMgrTransferSlotCoolTime(PyObject* poSelf, PyObject* poArgs)
 
 	return Py_BuildNone();
 }
-#endif
 
 PyObject * wndMgrSetToggleSlot(PyObject * poSelf, PyObject * poArgs)
 {
@@ -2497,11 +2495,9 @@ void initwndMgr()
 		{ "SetSlotCount",				wndMgrSetSlotCount,					METH_VARARGS },
 		{ "SetSlotCountNew",			wndMgrSetSlotCountNew,				METH_VARARGS },
 		{ "SetSlotCoolTime",			wndMgrSetSlotCoolTime,				METH_VARARGS },
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 		{ "StoreSlotCoolTime",			wndMgrStoreSlotCoolTime,			METH_VARARGS },
 		{ "RestoreSlotCoolTime",		wndMgrRestoreSlotCoolTime,			METH_VARARGS },
 		{ "TransferSlotCoolTime",		wndMgrTransferSlotCoolTime,			METH_VARARGS },
-#endif
 		{ "SetToggleSlot",				wndMgrSetToggleSlot,				METH_VARARGS },
 		{ "ActivateSlot",				wndMgrActivateSlot,					METH_VARARGS },
 		{ "DeactivateSlot",				wndMgrDeactivateSlot,				METH_VARARGS },

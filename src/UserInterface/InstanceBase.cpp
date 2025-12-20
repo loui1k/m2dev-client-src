@@ -448,11 +448,7 @@ BOOL CInstanceBase::IsMovieMode()
 
 BOOL CInstanceBase::IsInvisibility()
 {
-#ifdef __ENABLE_STEALTH_FIX__
 	if (IsAffect(AFFECT_INVISIBILITY) || IsAffect(AFFECT_EUNHYEONG) || IsAffect(AFFECT_REVIVE_INVISIBILITY))
-#else
-	if (IsAffect(AFFECT_INVISIBILITY))
-#endif
 		return true;
 
 	return false;
@@ -1560,7 +1556,11 @@ void CInstanceBase::StateProcess()
 						SetAdvancingRotation(fRotDst);
 						SetRotation(fRotDst);
 
+#ifdef FIX_POS_SYNC
+						NEW_UseSkill(1, eFunc& FUNC_SKILL - 1, uArg & 0x0f, (uArg >> 4) ? true : false);
+#else
 						NEW_UseSkill(0, eFunc & 0x7f, uArg&0x0f, (uArg>>4) ? true : false);
+#endif
 						//Tracen("가깝기 때문에 워프 공격");
 					}
 				}
@@ -1738,7 +1738,11 @@ void CInstanceBase::MovementProcess()
 							{
 								SetAdvancingRotation(m_fDstRot);
 								BlendRotation(m_fDstRot);
+#ifdef FIX_POS_SYNC
+								NEW_UseSkill(1, m_kMovAfterFunc.eFunc& FUNC_SKILL - 1, m_kMovAfterFunc.uArg & 0x0f, (m_kMovAfterFunc.uArg >> 4) ? true : false);
+#else
 								NEW_UseSkill(0, m_kMovAfterFunc.eFunc & 0x7f, m_kMovAfterFunc.uArg&0x0f, (m_kMovAfterFunc.uArg>>4) ? true : false);
+#endif
 							}
 							else
 							{
@@ -1794,11 +1798,7 @@ void CInstanceBase::MovementProcess()
 			m_GraphicThingInstance.SetRotation(fRotation);
 		}
 
-#ifdef __ENABLE_STEALTH_FIX__
 		if (__IsInDustRange() && !IsAffect(AFFECT_INVISIBILITY) && !IsAffect(AFFECT_EUNHYEONG) && !IsAffect(AFFECT_REVIVE_INVISIBILITY))
-#else
-		if (__IsInDustRange())
-#endif
 		{ 
 			float fDustDistance = NEW_GetDistanceFromDestPixelPosition(m_kPPosDust);
 			if (IsMountingHorse())
@@ -1978,7 +1978,6 @@ void CInstanceBase::Render()
 	m_kHorse.Render();
 	m_GraphicThingInstance.Render();
 
-#ifdef __ENABLE_STEALTH_FIX__
 	CPythonCharacterManager& rkChrMgr = CPythonCharacterManager::Instance();
 
 	for (auto ptr = rkChrMgr.CharacterInstanceBegin(); ptr != rkChrMgr.CharacterInstanceEnd(); ++ptr)
@@ -1999,7 +1998,6 @@ void CInstanceBase::Render()
 			}
 		}
 	}
-#endif
 	
 	if (CActorInstance::IsDirLine())
 	{	

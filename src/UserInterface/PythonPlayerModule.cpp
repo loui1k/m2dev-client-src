@@ -543,7 +543,6 @@ PyObject * playerGetSkillCoolTime(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildValue("ff", fCoolTime, fElapsedCoolTime);
 }
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 PyObject * playerResetSkillCoolTimeForSlot(PyObject* poSelf, PyObject* poArgs)
 {
     int iSlotIndex;
@@ -566,7 +565,6 @@ PyObject* playerResetHorseSkillCoolTime(PyObject* poSelf, PyObject* poArgs)
 
     Py_RETURN_NONE;
 }
-#endif
 
 PyObject * playerIsSkillActive(PyObject* poSelf, PyObject* poArgs)
 {
@@ -2258,10 +2256,8 @@ void initPlayer()
 
 		{ "IsSkillCoolTime",			playerIsSkillCoolTime,				METH_VARARGS },
 		{ "GetSkillCoolTime",			playerGetSkillCoolTime,				METH_VARARGS },
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 		{ "ResetSkillCoolTimeForSlot",	playerResetSkillCoolTimeForSlot,	METH_VARARGS },
 		{ "ResetHorseSkillCoolTime", 	playerResetHorseSkillCoolTime, 		METH_VARARGS },
-#endif
 		{ "IsSkillActive",				playerIsSkillActive,				METH_VARARGS },
 		{ "UseGuildSkill",				playerUseGuildSkill,				METH_VARARGS },
 		{ "AffectIndexToSkillIndex",	playerAffectIndexToSkillIndex,		METH_VARARGS },
@@ -2293,11 +2289,9 @@ void initPlayer()
 		{ "IsValuableItem",				playerIsValuableItem,				METH_VARARGS },
 		{ "IsOpenPrivateShop",			playerIsOpenPrivateShop,			METH_VARARGS },
 
-#ifdef ENABLE_NEW_EQUIPMENT_SYSTEM
 		{ "IsBeltInventorySlot",			playerIsBeltInventorySlot,			METH_VARARGS },
-		{ "IsEquippingBelt",				playerIsEquippingBelt,				METH_VARARGS },		
-		{ "IsAvailableBeltInventoryCell",	playerIsAvailableBeltInventoryCell,	METH_VARARGS },		
-#endif
+		{ "IsEquippingBelt",				playerIsEquippingBelt,				METH_VARARGS },	
+		{ "IsAvailableBeltInventoryCell",	playerIsAvailableBeltInventoryCell,	METH_VARARGS },
 
 		// Refine
 		{ "GetItemGrade",				playerGetItemGrade,					METH_VARARGS },

@@ -160,11 +160,7 @@ void CInstanceBase::ProcessDamage()
 
 			m_bDamageEffectType = !m_bDamageEffectType;
 		}
-#ifdef __ENABLE_STEALTH_FIX__ //EXP
 		else if (!bTarget || ((IsAffect(AFFECT_INVISIBILITY) || IsAffect(AFFECT_EUNHYEONG)) && bTarget))
-#else
-		else if (bTarget == false)
-#endif
 		{
 			strDamageType = "nontarget_";
 			rdwCRCEft = EFFECT_DAMAGE_NOT_TARGET;
@@ -802,31 +798,23 @@ void CInstanceBase::__SetReviveInvisibilityAffect(bool isVisible)
 		if (IsWearingDress())
 			return;
 
-#ifdef __ENABLE_STEALTH_FIX__
 		if (__IsMainInstance() || __MainCanSeeHiddenThing())
 		{
-#endif
 			m_GraphicThingInstance.BlendAlphaValue(0.5f, 1.0f);
-#ifdef __ENABLE_STEALTH_FIX__
 		}
 		else
 		{
 			m_GraphicThingInstance.BlendAlphaValue(0.0f, 1.0f);
 			m_GraphicThingInstance.HideAllAttachingEffect();
 		}
-#endif
 	}
 	else
 	{
-#ifdef __ENABLE_STEALTH_FIX__
 		if (!IsAffect(AFFECT_EUNHYEONG) && !IsAffect(AFFECT_INVISIBILITY))
 		{
-#endif
 			m_GraphicThingInstance.BlendAlphaValue(1.0f, 1.0f);
-#ifdef __ENABLE_STEALTH_FIX__
 			m_GraphicThingInstance.ShowAllAttachingEffect();
 		}
-#endif
 	}
 }
 
@@ -846,26 +834,20 @@ void CInstanceBase::__Assassin_SetEunhyeongAffect(bool isVisible)
 		{
 			// 2004.10.16.myevan.은형법 완전 투명
 			m_GraphicThingInstance.BlendAlphaValue(0.0f, 1.0f);
-#ifdef __ENABLE_STEALTH_FIX__ //EXP
 			if (!IsAffect(AFFECT_INVISIBILITY) && !IsAffect(AFFECT_REVIVE_INVISIBILITY))
 				m_GraphicThingInstance.HideAllAttachingEffectForEunhyeong();
 			else
-#endif
 				m_GraphicThingInstance.HideAllAttachingEffect();
 		}
 	}
 	else
 	{
-#ifdef __ENABLE_STEALTH_FIX__
 		if (!IsAffect(AFFECT_REVIVE_INVISIBILITY) && !IsAffect(AFFECT_INVISIBILITY))
 		{
-#endif
 			m_GraphicThingInstance.BlendAlphaValue(1.0f, 1.0f);
 			m_GraphicThingInstance.ShowAllAttachingEffect();
-#ifdef __ENABLE_STEALTH_FIX__
 			ProcessDamage();
 		}
-#endif
 	}
 }
 
@@ -944,11 +926,7 @@ void CInstanceBase::__SetAffect(UINT eAffect, bool isVisible)
 			return;
 			break;
 		case AFFECT_REVIVE_INVISIBILITY:
-#ifdef __ENABLE_STEALTH_FIX__
 			__SetReviveInvisibilityAffect(isVisible);
-#else
-			__Assassin_SetEunhyeongAffect(isVisible);
-#endif
 			break;
 		case AFFECT_EUNHYEONG:
 			__Assassin_SetEunhyeongAffect(isVisible);
@@ -964,28 +942,16 @@ void CInstanceBase::__SetAffect(UINT eAffect, bool isVisible)
 			// 2004.07.17.levites.isShow를 ViewFrustumCheck로 변경
 			if (isVisible)
 			{
-#ifndef __ENABLE_STEALTH_FIX__
-				m_GraphicThingInstance.ClearAttachingEffect();
-				__EffectContainer_Destroy();
-				DetachTextTail();
-#else
 				m_GraphicThingInstance.HideAllAttachingEffect();
-#endif
 			}
 			else
 			{
-#ifdef __ENABLE_STEALTH_FIX__
 				if (!IsAffect(AFFECT_EUNHYEONG) && !IsAffect(AFFECT_REVIVE_INVISIBILITY))
 				{
 					m_GraphicThingInstance.BlendAlphaValue(1.0f, 1.0f);
 					m_GraphicThingInstance.ShowAllAttachingEffect();
 					ProcessDamage();
 				}
-#else
-				m_GraphicThingInstance.BlendAlphaValue(1.0f, 1.0f);
-				AttachTextTail();
-				RefreshTextTail();
-#endif
 			}
 			return;
 			break;

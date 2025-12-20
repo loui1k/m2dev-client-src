@@ -5,10 +5,8 @@ void CPythonMessenger::RemoveFriend(const char * c_szKey)
 {
 	m_FriendNameMap.erase(c_szKey);
 
-#ifdef FIX_MESSENGER_ACTION_SYNC
 	if (m_poMessengerHandler)
 		PyCallClassMemberFunc(m_poMessengerHandler, "OnRemoveList", Py_BuildValue("(is)", MESSENGER_GRUOP_INDEX_FRIEND, c_szKey));
-#endif
 }
 
 void CPythonMessenger::OnFriendLogin(const char * c_szKey/*, const char * c_szName*/)

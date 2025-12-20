@@ -580,10 +580,7 @@ void CActorInstance::ShowAllAttachingEffect()
 	{
 		CEffectManager::Instance().SelectEffectInstance(it->dwEffectIndex);
 		CEffectManager::Instance().ShowEffect();
-#ifdef __ENABLE_STEALTH_FIX__
 		CEffectManager::Instance().ReleaseAlwaysHidden();
-		//CEffectManager::Instance().Update();
-#endif
 	}
 }
 
@@ -595,13 +592,10 @@ void CActorInstance::HideAllAttachingEffect()
 	{
 		CEffectManager::Instance().SelectEffectInstance(it->dwEffectIndex);
 		CEffectManager::Instance().HideEffect();
-#ifdef __ENABLE_STEALTH_FIX__
 		CEffectManager::Instance().ApplyAlwaysHidden();
-#endif
 	}
 }
 
-#ifdef __ENABLE_STEALTH_FIX__ //EXP
 void CActorInstance::HideAllAttachingEffectForEunhyeong()
 {
 	std::list<TAttachingEffect>::iterator it;
@@ -652,7 +646,6 @@ void CActorInstance::HideAllAttachingEffectForEunhyeong()
 		CEffectManager::Instance().ApplyAlwaysHidden();
 	}
 }
-#endif
 
 void CActorInstance::__ClearAttachingEffect()
 {

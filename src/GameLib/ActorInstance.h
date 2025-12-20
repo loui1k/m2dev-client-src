@@ -362,9 +362,21 @@ class CActorInstance : public IActorInstance, public IFlyTargetableObject
 		BOOL		IsActEmotion();
 		DWORD		GetComboIndex();
 		float		GetAttackingElapsedTime();
+#ifdef FIX_POS_SYNC
+		void		SetBlendingPosition(const TPixelPosition& c_rPosition, float fBlendingTime = 1.0f);
+#else
 		void		SetBlendingPosition(const TPixelPosition & c_rPosition, float fBlendingTime = 1.0f);
+#endif
 		void		ResetBlendingPosition();
 		void		GetBlendingPosition(TPixelPosition * pPosition);
+
+#ifdef FIX_POS_SYNC
+		struct BlendingPosition {
+			D3DXVECTOR3 source;
+			D3DXVECTOR3 dest;
+			float duration;
+		};
+#endif
 
 		BOOL		NormalAttack(float fDirRot, float fBlendTime = 0.1f);
 		BOOL		ComboAttack(DWORD wMotionIndex, float fDirRot, float fBlendTime = 0.1f);
@@ -479,6 +491,13 @@ class CActorInstance : public IActorInstance, public IFlyTargetableObject
 		void		RenderCollisionData();
 		void		RenderToShadowMap();
 
+#ifdef FIX_POS_SYNC
+		void		ClientAttack(DWORD dwVID);
+		void		ServerAttack(DWORD dwVID);
+		bool		ProcessingClientAttack(DWORD dwVID);
+		bool		ServerAttackCameFirst(DWORD dwVID);
+#endif
+
 	protected:
 		void		__AdjustCollisionMovement(const CGraphicObjectInstance * c_pGraphicObjectInstance);
 
@@ -496,9 +515,7 @@ class CActorInstance : public IActorInstance, public IFlyTargetableObject
 		float		GetHeight();
 		void		ShowAllAttachingEffect();
 		void		HideAllAttachingEffect();
-#ifdef __ENABLE_STEALTH_FIX__ //EXP
 		void		HideAllAttachingEffectForEunhyeong();
-#endif
 		void		ClearAttachingEffect();
 
 		// Fishing
@@ -605,6 +622,10 @@ class CActorInstance : public IActorInstance, public IFlyTargetableObject
 		void __ClearCombo();
 		void __OnEndCombo();
 
+#ifdef FIX_POS_SYNC
+		void __Push(const TPixelPosition& c_rkPPosDst, unsigned int unDuration);
+#endif
+
 		void __ProcessDataAttackSuccess(const NRaceData::TAttackData & c_rAttackData, CActorInstance & rVictim, const D3DXVECTOR3 & c_rv3Position, UINT uiSkill = 0, BOOL isSendPacket = TRUE);
 		void __ProcessMotionEventAttackSuccess(DWORD dwMotionKey, BYTE byEventIndex, CActorInstance & rVictim);
 		void __ProcessMotionAttackSuccess(DWORD dwMotionKey, CActorInstance & rVictim);
@@ -612,7 +633,11 @@ class CActorInstance : public IActorInstance, public IFlyTargetableObject
 
 		void __HitStone(CActorInstance& rVictim);
 		void __HitGood(CActorInstance& rVictim);
+#ifdef FIX_POS_SYNC
+		void __HitGreate(CActorInstance& rVictim, UINT uiSkill);
+#else
 		void __HitGreate(CActorInstance& rVictim);
+#endif
 
 		void __PushDirect(CActorInstance & rVictim);
 		void __PushCircle(CActorInstance & rVictim);

@@ -1495,7 +1495,6 @@ bool CPythonNetworkStream::RecvPointChange()
 			case POINT_STAT_RESET_COUNT:
 				__RefreshStatus();
 				break;
-#ifdef CHAR_SELECT_STATS_IMPROVEMENT
 			case POINT_PLAYTIME:
 				m_akSimplePlayerInfo[m_dwSelectedCharacterIndex].dwPlayMinutes = PointChange.value;
 				break;
@@ -1504,9 +1503,6 @@ bool CPythonNetworkStream::RecvPointChange()
 				__RefreshStatus();
 				__RefreshSkillWindow();
 				break;
-#else
-			case POINT_LEVEL:
-#endif
 			case POINT_ST:
 			case POINT_DX:
 			case POINT_HT:
@@ -2429,6 +2425,30 @@ bool CPythonNetworkStream::RecvDamageInfoPacket()
 	return true;
 }
 
+#ifdef FIX_POS_SYNC
+bool CPythonNetworkStream::RecvCharacterAttackPacket()
+{
+	TPacketGCAttack kPacket;
+
+	if (!Recv(sizeof(TPacketGCAttack), &kPacket))
+	{
+		Tracen("CPythonNetworkStream::RecvCharacterAttackPacket - PACKET READ ERROR");
+		return false;
+	}
+
+	if (kPacket.lX && kPacket.lY) {
+		__GlobalPositionToLocalPosition(kPacket.lX, kPacket.lY);
+	}
+	__GlobalPositionToLocalPosition(kPacket.lSX, kPacket.lSY);
+
+	TPixelPosition tSyncPosition = TPixelPosition{ kPacket.fSyncDestX, kPacket.fSyncDestY, 0 };
+
+	m_rokNetActorMgr->AttackActor(kPacket.dwVID, kPacket.dwVictimVID, kPacket.lX, kPacket.lY, tSyncPosition, kPacket.dwBlendDuration);
+
+	return true;
+}
+#endif
+
 bool CPythonNetworkStream::RecvTargetPacket()
 {
 	TPacketGCTarget TargetPacket;
@@ -2520,10 +2540,19 @@ bool CPythonNetworkStream::RecvChangeSpeedPacket()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Recv
 
+#ifdef FIX_POS_SYNC
+bool CPythonNetworkStream::SendAttackPacket(UINT uMotAttack, DWORD dwVIDVictim, BOOL bPacket, CActorInstance::BlendingPosition& sBlending)
+#else
 bool CPythonNetworkStream::SendAttackPacket(UINT uMotAttack, DWORD dwVIDVictim)
+#endif
 {
 	if (!__CanActMainInstance())
 		return true;
+
+#ifdef FIX_POS_SYNC
+	CPythonCharacterManager& rkChrMgr = CPythonCharacterManager::Instance();
+	CInstanceBase* pkInstMain = rkChrMgr.GetMainInstancePtr();
+#endif
 
 #ifdef ATTACK_TIME_LOG
 	static DWORD prevTime = timeGetTime();
@@ -2537,6 +2566,25 @@ bool CPythonNetworkStream::SendAttackPacket(UINT uMotAttack, DWORD dwVIDVictim)
 	kPacketAtk.header = HEADER_CG_ATTACK;
 	kPacketAtk.bType = uMotAttack;
 	kPacketAtk.dwVictimVID = dwVIDVictim;
+#ifdef FIX_POS_SYNC
+	kPacketAtk.bPacket = bPacket;
+	kPacketAtk.lX = (long)sBlending.dest.x;
+	kPacketAtk.lY = (long)sBlending.dest.y;
+	kPacketAtk.lSX = (long)sBlending.source.x;
+	kPacketAtk.lSY = (long)sBlending.source.y;
+	kPacketAtk.fSyncDestX = sBlending.dest.x;
+	// sources and dest are normalized with both coordinates positive
+	// since fSync are ment to be broadcasted to other clients, the Y has to preserve the negative coord
+	kPacketAtk.fSyncDestY = -sBlending.dest.y;
+	kPacketAtk.dwBlendDuration = (unsigned int)(sBlending.duration * 1000);
+	kPacketAtk.dwComboMotion = pkInstMain->GetComboMotion();
+	kPacketAtk.dwTime = ELTimer_GetServerMSec();
+
+	if (kPacketAtk.lX && kPacketAtk.lY)
+		__LocalPositionToGlobalPosition(kPacketAtk.lX, kPacketAtk.lY);
+
+	__LocalPositionToGlobalPosition(kPacketAtk.lSX, kPacketAtk.lSY);
+#endif
 
 	if (!SendSpecial(sizeof(kPacketAtk), &kPacketAtk))
 	{
@@ -2832,7 +2880,6 @@ bool CPythonNetworkStream::RecvMessenger()
 			break;
 		}
 
-#ifdef FIX_MESSENGER_ACTION_SYNC
 		case MESSENGER_SUBHEADER_GC_REMOVE_FRIEND:
 		{
 			BYTE bLength;
@@ -2850,7 +2897,6 @@ bool CPythonNetworkStream::RecvMessenger()
 
 			break;
 		}
-#endif
 	}
 	return true;
 }

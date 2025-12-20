@@ -75,9 +75,7 @@ namespace UI
 			} TSlot;
 			typedef std::list<TSlot> TSlotList;
 			typedef TSlotList::iterator TSlotListIterator;
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 			typedef struct SStoreCoolDown { float fCoolTime; float fElapsedTime; bool bActive; };
-#endif
 
 
 		public:
@@ -88,9 +86,7 @@ namespace UI
 
 			// Manage Slot
 			void SetSlotType(DWORD dwType);
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 			DWORD GetSlotType() const;
-#endif
 			void SetSlotStyle(DWORD dwStyle);
 
 			void AppendSlot(DWORD dwIndex, int ixPosition, int iyPosition, int ixCellSize, int iyCellSize);
@@ -114,11 +110,9 @@ namespace UI
 			void SetSlotCount(DWORD dwIndex, DWORD dwCount);
 			void SetSlotCountNew(DWORD dwIndex, DWORD dwGrade, DWORD dwCount);
 			void SetSlotCoolTime(DWORD dwIndex, float fCoolTime, float fElapsedTime = 0.0f);
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 			void StoreSlotCoolTime(DWORD dwKey, DWORD dwSlotIndex, float fCoolTime, float fElapsedTime = .0f);
 			void RestoreSlotCoolTime(DWORD dwKey);
 			void TransferSlotCoolTime(DWORD dwIndex1, DWORD dwIndex2);
-#endif
 			void ActivateSlot(DWORD dwIndex);
 			void DeactivateSlot(DWORD dwIndex);
 			void RefreshSlot();
@@ -162,9 +156,7 @@ namespace UI
 			// CallBack
 			void ReserveDestroyCoolTimeFinishEffect(DWORD dwSlotIndex);
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 			void ClearStoredSlotCoolTime(DWORD dwKey, DWORD dwSlotIndex);
-#endif
 
 		protected:
 			void __Initialize();
@@ -215,9 +207,7 @@ namespace UI
 			std::list<DWORD> m_dwSelectedSlotIndexList;
 			TSlotList m_SlotList;
 			DWORD m_dwToolTipSlotNumber;
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 			std::map<DWORD, std::map<DWORD, SStoreCoolDown>>	m_CoolDownStore;
-#endif
 
 			BOOL m_isUseMode;
 			BOOL m_isUsableItem;

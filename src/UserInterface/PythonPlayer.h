@@ -262,11 +262,9 @@ class CPythonPlayer : public CSingleton<CPythonPlayer>, public IAbstractPlayer
 		void	NotifyCharacterUpdate(DWORD dwVID);
 		void	NotifyDeadMainCharacter();
 		void	NotifyChangePKMode();
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 		void	ResetSkillCoolTimes();
 		void	ResetSkillCoolTimeForSlot(DWORD dwSlotIndex);
 		void 	ResetHorseSkillCoolTime(DWORD dwSkillIndex, DWORD dwVisualSlotIndex);
-#endif
 
 
 		// Player Status

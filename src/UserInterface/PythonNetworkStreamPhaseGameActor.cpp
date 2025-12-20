@@ -324,10 +324,9 @@ void CPythonNetworkStream::__RecvCharacterUpdatePacket(SNetworkUpdateActorData *
 		__RefreshAlignmentWindow();
 		__RefreshEquipmentWindow();
 		__RefreshInventoryWindow();
-#ifdef CHAR_SELECT_STATS_IMPROVEMENT
+		
 		m_akSimplePlayerInfo[m_dwSelectedCharacterIndex].wHairPart = pkNetUpdateActorData->m_dwHair;
 		m_akSimplePlayerInfo[m_dwSelectedCharacterIndex].wMainPart = pkNetUpdateActorData->m_dwArmor;
-#endif
 	}
 	else
 	{

@@ -532,7 +532,6 @@ void CPythonPlayer::NotifyChangePKMode()
 	PyCallClassMemberFunc(m_ppyGameWindow, "OnChangePKMode", Py_BuildValue("()"));
 }
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 void CPythonPlayer::ResetSkillCoolTimes()
 {
 	for (int i = 0; i < SKILL_MAX_NUM; ++i)
@@ -599,7 +598,6 @@ void CPythonPlayer::ResetHorseSkillCoolTime(DWORD dwSkillIndex, DWORD dwVisualSl
         CPythonSkill::SKILL_TYPE_HORSE, 
         dwVisualSlotIndex);
 }
-#endif
 
 void CPythonPlayer::MoveItemData(TItemPos SrcCell, TItemPos DstCell)
 {
@@ -1104,12 +1102,10 @@ void CPythonPlayer::SetSkillLevel_(DWORD dwSkillIndex, DWORD dwSkillGrade, DWORD
 		return;
 	}
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 	if (m_playerStatus.aSkill[dwSlotIndex].iLevel <= 0)
 	{
 		ResetSkillCoolTimeForSlot(dwSlotIndex);
 	}
-#endif
 	
 	m_playerStatus.aSkill[dwSlotIndex].fcurEfficientPercentage	= LocaleService_GetSkillPower(dwSkillLevel) / 100.0f;
 	m_playerStatus.aSkill[dwSlotIndex].fnextEfficientPercentage = LocaleService_GetSkillPower(dwSkillLevel + 1) / 100.0f;
@@ -1644,7 +1640,6 @@ void CPythonPlayer::NEW_ClearSkillData(bool bAll)
 
 	for (it = m_skillSlotDict.begin(); it != m_skillSlotDict.end();)
 	{
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 		CPythonSkill::TSkillData* data = nullptr;
 
 		if (!CPythonSkill::Instance().GetSkillData(it->first, &data))
@@ -1654,9 +1649,6 @@ void CPythonPlayer::NEW_ClearSkillData(bool bAll)
 		}
 
 		if (bAll || (data->byType != CPythonSkill::SKILL_TYPE_SUPPORT && data->byType != CPythonSkill::SKILL_TYPE_HORSE && data->byType != CPythonSkill::SKILL_TYPE_GUILD))
-#else
-		if (bAll || __GetSkillType(it->first) == CPythonSkill::SKILL_TYPE_ACTIVE)
-#endif
 			it = m_skillSlotDict.erase(it);
 		else
 			++it;
@@ -1664,7 +1656,6 @@ void CPythonPlayer::NEW_ClearSkillData(bool bAll)
 
 	for (int i = 0; i < SKILL_MAX_NUM; ++i)
 	{
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 		DWORD dwSkillIndex = m_playerStatus.aSkill[i].dwIndex;
 		CPythonSkill::TSkillData* pSkillData = NULL;
 
@@ -1680,7 +1671,6 @@ void CPythonPlayer::NEW_ClearSkillData(bool bAll)
 					   pSkillData->byType == CPythonSkill::SKILL_TYPE_HORSE || 
 					   pSkillData->byType == CPythonSkill::SKILL_TYPE_GUILD))
 			continue;
-#endif
 
 		ZeroMemory(&m_playerStatus.aSkill[i], sizeof(TSkillInstance));
 	}
@@ -1692,7 +1682,6 @@ void CPythonPlayer::NEW_ClearSkillData(bool bAll)
 		m_playerStatus.aSkill[j].fcurEfficientPercentage = 0.0f;
 		m_playerStatus.aSkill[j].fnextEfficientPercentage = 0.05f;
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 		m_playerStatus.aSkill[j].isCoolTime = false;
 		m_playerStatus.aSkill[j].fCoolTime = 0.0f;
 		m_playerStatus.aSkill[j].fLastUsedTime = 0.0f;
@@ -1704,7 +1693,6 @@ void CPythonPlayer::NEW_ClearSkillData(bool bAll)
 				CPythonSkill::SKILL_TYPE_ACTIVE,
 				j + iGrade * CPythonSkill::SKILL_GRADE_STEP_COUNT);
 		}
-#endif
 	}
 
 	if (m_ppyGameWindow)

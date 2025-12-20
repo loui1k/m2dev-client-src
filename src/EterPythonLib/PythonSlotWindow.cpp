@@ -4,10 +4,8 @@
 #include "PythonWindow.h"
 #include "PythonSlotWindow.h"
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 #include "UserInterface/PythonSkill.h"
 #include "UserInterface/PythonPlayer.h"
-#endif
 
 //#define __RENDER_SLOT_AREA__
 
@@ -209,12 +207,10 @@ void CSlotWindow::SetSlotType(DWORD dwType)
 	m_dwSlotType = dwType;
 }
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 DWORD CSlotWindow::GetSlotType() const
 {
 	return m_dwSlotType;
 }
-#endif
 
 
 void CSlotWindow::SetSlotStyle(DWORD dwStyle)
@@ -520,7 +516,6 @@ void CSlotWindow::SetSlotCoolTime(DWORD dwIndex, float fCoolTime, float fElapsed
 	pSlot->fStartCoolTime = CTimer::Instance().GetCurrentSecond() - fElapsedTime;
 }
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 void CSlotWindow::StoreSlotCoolTime(DWORD dwKey, DWORD dwSlotIndex, float fCoolTime, float fElapsedTime)
 {
 	std::map<DWORD, SStoreCoolDown>::iterator it = m_CoolDownStore[dwKey].find(dwSlotIndex);
@@ -602,7 +597,6 @@ void CSlotWindow::TransferSlotCoolTime(DWORD dwIndex1, DWORD dwIndex2)
 		}
 	}
 }
-#endif
 
 void CSlotWindow::ActivateSlot(DWORD dwIndex)
 {
@@ -618,12 +612,10 @@ void CSlotWindow::ActivateSlot(DWORD dwIndex)
 		__CreateSlotEnableEffect();
 	}
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 	std::map<DWORD, SStoreCoolDown>::iterator it = m_CoolDownStore[1].find(dwIndex);
 
 	if (it != m_CoolDownStore[1].end())
 		it->second.bActive = true;
-#endif
 }
 
 void CSlotWindow::DeactivateSlot(DWORD dwIndex)
@@ -635,12 +627,10 @@ void CSlotWindow::DeactivateSlot(DWORD dwIndex)
 
 	pSlot->bActive = FALSE;
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 	std::map<DWORD, SStoreCoolDown>::iterator it = m_CoolDownStore[1].find(dwIndex);
 
 	if (it != m_CoolDownStore[1].end())
 		it->second.bActive = false;
-#endif
 }
 
 void CSlotWindow::ClearSlot(DWORD dwIndex)
@@ -1377,7 +1367,6 @@ void CSlotWindow::ReserveDestroyCoolTimeFinishEffect(DWORD dwSlotIndex)
 	m_ReserveDestroyEffectDeque.push_back(dwSlotIndex);
 }
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 void CSlotWindow::ClearStoredSlotCoolTime(DWORD dwKey, DWORD dwSlotIndex)
 {
 	std::map<DWORD, SStoreCoolDown>& store = m_CoolDownStore[dwKey];
@@ -1386,7 +1375,6 @@ void CSlotWindow::ClearStoredSlotCoolTime(DWORD dwKey, DWORD dwSlotIndex)
 	if (it != store.end())
 		store.erase(it);
 }
-#endif
 
 DWORD CSlotWindow::Type()
 {
@@ -1509,9 +1497,7 @@ void CSlotWindow::__Initialize()
 	m_dwSlotStyle = SLOT_STYLE_PICK_UP;
 	m_dwToolTipSlotNumber = SLOT_NUMBER_NONE;
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 	m_CoolDownStore.clear();
-#endif
 
 
 	m_isUseMode = FALSE;

@@ -652,7 +652,6 @@ namespace UI
 		m_pRightCaptureWindow = NULL;
 	}
 
-#ifdef FIX_REFRESH_SKILL_COOLDOWN
 	void CWindowManager::ClearStoredSlotCoolTimeInAllSlotWindows(DWORD dwKey, DWORD dwSlotIndex)
 	{
 		// recursively walk the window tree starting from layers and clear stored cooldown entries
@@ -683,7 +682,6 @@ namespace UI
 			recurse(pLayer);
 		}
 	}
-#endif
 
 	void CWindowManager::SetResolution(int hres, int vres)
 	{
