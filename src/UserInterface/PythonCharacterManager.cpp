@@ -178,8 +178,10 @@ void CPythonCharacterManager::Update()
 				continue;
 			}
 
-			int nDistance = int(pkInstEach->NEW_GetDistanceFromDestInstance(*pkInstMain));
-			if (nDistance > CHAR_STAGE_VIEW_BOUND + 10)
+			// Optimized: Use squared distance to avoid sqrt
+			float fDistanceSquared = pkInstEach->NEW_GetDistanceFromDestInstanceSquared(*pkInstMain);
+			const float fViewBoundSquared = (CHAR_STAGE_VIEW_BOUND + 10) * (CHAR_STAGE_VIEW_BOUND + 10);
+			if (fDistanceSquared > fViewBoundSquared)
 			{
 				__DeleteBlendOutInstance(pkInstEach);
 				m_kAliveInstMap.erase(c);

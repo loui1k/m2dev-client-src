@@ -640,6 +640,7 @@ class CInstanceBase
 		float					NEW_GetDistanceFromDirPixelPosition(const TPixelPosition& c_rkPPosDir);
 		float					NEW_GetDistanceFromDestPixelPosition(const TPixelPosition& c_rkPPosDst);
 		float					NEW_GetDistanceFromDestInstance(CInstanceBase& rkInstDst);
+		float					NEW_GetDistanceFromDestInstanceSquared(CInstanceBase& rkInstDst);  // Optimized: no sqrt
 
 		float					NEW_GetRotation();
 		float					NEW_GetRotationFromDestPixelPosition(const TPixelPosition& c_rkPPosDst);

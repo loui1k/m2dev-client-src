@@ -91,6 +91,19 @@ float CInstanceBase::NEW_GetDistanceFromDirPixelPosition(const TPixelPosition& c
 	return sqrtf(c_rkPPosDir.x*c_rkPPosDir.x+c_rkPPosDir.y*c_rkPPosDir.y);
 }
 
+// Optimized: Get squared distance (avoid sqrt for comparisons)
+float CInstanceBase::NEW_GetDistanceFromDestInstanceSquared(CInstanceBase& rkInstDst)
+{
+	TPixelPosition kPPosDst;
+	rkInstDst.NEW_GetPixelPosition(&kPPosDst);
+
+	TPixelPosition kPPosCur;
+	NEW_GetPixelPosition(&kPPosCur);
+
+	TPixelPosition kPPosDir = kPPosDst - kPPosCur;
+	return kPPosDir.x * kPPosDir.x + kPPosDir.y * kPPosDir.y;
+}
+
 float CInstanceBase::NEW_GetRotation()
 {
 	float fCurRot=GetRotation();

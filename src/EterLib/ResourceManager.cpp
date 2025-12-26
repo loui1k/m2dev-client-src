@@ -8,13 +8,28 @@
 #include "ResourceManager.h"
 #include "GrpImage.h"
 
-int g_iLoadingDelayTime = 20;
+int g_iLoadingDelayTime = 1;  // Reduced from 20ms to 1ms for faster async loading
 
 const long c_Deleting_Wait_Time = 30000;			// 삭제 대기 시간 (30초)
 const long c_DeletingCountPerFrame = 30;			// 프레임당 체크 리소스 갯수
 const long c_Reference_Decrease_Wait_Time = 30000;	// 선로딩 리소스의 해제 대기 시간 (30초)
 
 CFileLoaderThread CResourceManager::ms_loadingThread;
+
+void CResourceManager::BeginThreadLoading()
+{
+	// Already started in constructor, nothing to do
+}
+
+void CResourceManager::EndThreadLoading()
+{
+	// Wait for all pending requests to complete
+	while (!m_RequestMap.empty() || !m_WaitingMap.empty())
+	{
+		ProcessBackgroundLoading();
+		Sleep(10);
+	}
+}
 
 void CResourceManager::LoadStaticCache(const char* c_szFileName)
 {
@@ -514,11 +529,11 @@ void CResourceManager::ReserveDeletingResource(CResource * pResource)
 
 CResourceManager::CResourceManager()
 {
-	//ms_loadingThread.Create(0);
+	ms_loadingThread.Create(0);
 }
 
 CResourceManager::~CResourceManager()
 {
 	Destroy();
-	//ms_loadingThread.Shutdown();
+	ms_loadingThread.Shutdown();
 }

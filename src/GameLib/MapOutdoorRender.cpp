@@ -40,7 +40,8 @@ void CMapOutdoor::RenderTerrain()
 	//////////////////////////////////////////////////////////////////////////
 	// Push
 	m_PatchVector.clear();
-	
+	m_PatchVector.reserve(256);  // Pre-allocate to avoid reallocations
+
 	__RenderTerrain_RecurseRenderQuadTree(m_pRootNode);
 	
 	// 거리순 정렬
@@ -491,6 +492,7 @@ void CMapOutdoor::RenderArea(bool bRenderAmbience)
 	{
 		static std::vector<CGraphicThingInstance*> s_kVct_pkOpaqueThingInstSort;
 		s_kVct_pkOpaqueThingInstSort.clear();
+		s_kVct_pkOpaqueThingInstSort.reserve(512);  // Pre-allocate to avoid reallocations
 
 		for (int i = 0; i < AROUND_AREA_NUM; ++i)
 		{
@@ -522,6 +524,7 @@ void CMapOutdoor::RenderBlendArea()
 
 	static std::vector<CGraphicThingInstance*> s_kVct_pkBlendThingInstSort;
 	s_kVct_pkBlendThingInstSort.clear();
+	s_kVct_pkBlendThingInstSort.reserve(256);  // Pre-allocate to avoid reallocations
 
 	for (int i = 0; i < AROUND_AREA_NUM; ++i)
 	{
