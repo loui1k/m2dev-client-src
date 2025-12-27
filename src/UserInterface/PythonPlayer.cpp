@@ -369,22 +369,12 @@ DWORD CPythonPlayer::__GetTotalAtk(DWORD dwWeaponPower, DWORD dwRefineBonus)
 	DWORD dwLvAtk=__GetLevelAtk();
 	DWORD dwStAtk=__GetStatAtk();
 
-	/////
-
 	DWORD dwWepAtk;
-	DWORD dwTotalAtk;	
+	DWORD dwTotalAtk;
 
-	if (LocaleService_IsCHEONMA())
-	{
-		dwWepAtk = __GetWeaponAtk(dwWeaponPower+dwRefineBonus);
-		dwTotalAtk = dwLvAtk+(dwStAtk+dwWepAtk)*(GetStatus(POINT_DX)+210)/300;		
-	}
-	else
-	{
-		int hr = __GetHitRate();
-		dwWepAtk = __GetWeaponAtk(dwWeaponPower+dwRefineBonus);
-		dwTotalAtk = dwLvAtk+(dwStAtk+dwWepAtk)*hr/100;	
-	}
+	int hr = __GetHitRate();
+	dwWepAtk = __GetWeaponAtk(dwWeaponPower+dwRefineBonus);
+	dwTotalAtk = dwLvAtk+(dwStAtk+dwWepAtk)*hr/100;
 
 	return dwTotalAtk;
 }
@@ -392,16 +382,7 @@ DWORD CPythonPlayer::__GetTotalAtk(DWORD dwWeaponPower, DWORD dwRefineBonus)
 DWORD CPythonPlayer::__GetHitRate()
 {
 	int src = 0;
-
-	if (LocaleService_IsCHEONMA())
-	{
-		src = GetStatus(POINT_DX);
-	}
-	else
-	{
-		src = (GetStatus(POINT_DX) * 4 + GetStatus(POINT_LEVEL) * 2)/6;
-	}
-
+	src = (GetStatus(POINT_DX) * 4 + GetStatus(POINT_LEVEL) * 2)/6;
 	return 100*(std::min(90, src)+210)/300;
 }
 
@@ -1059,7 +1040,6 @@ void CPythonPlayer::SetSkillLevel(DWORD dwSlotIndex, DWORD dwSkillLevel)
 void CPythonPlayer::SetSkillLevel_(DWORD dwSkillIndex, DWORD dwSkillGrade, DWORD dwSkillLevel)
 {
 	DWORD dwSlotIndex;
-
 	if (!GetSkillSlotIndex(dwSkillIndex, &dwSlotIndex))
 		return;
 
@@ -1071,34 +1051,33 @@ void CPythonPlayer::SetSkillLevel_(DWORD dwSkillIndex, DWORD dwSkillGrade, DWORD
 		case 0:
 			m_playerStatus.aSkill[dwSlotIndex].iGrade = dwSkillGrade;
 			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel;
-
 			break;
 		case 1:
 			m_playerStatus.aSkill[dwSlotIndex].iGrade = dwSkillGrade;
-			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel - 20 + 1;
-
+			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel-20+1;
 			break;
 		case 2:
 			m_playerStatus.aSkill[dwSlotIndex].iGrade = dwSkillGrade;
-			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel - 30 + 1;
-
+			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel-30+1;
 			break;
 		case 3:
 			m_playerStatus.aSkill[dwSlotIndex].iGrade = dwSkillGrade;
-			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel - 40 + 1;
-
+			m_playerStatus.aSkill[dwSlotIndex].iLevel = dwSkillLevel-40+1;
 			break;
 	}
 
 	const DWORD SKILL_MAX_LEVEL = 40;
 
-	if (dwSkillLevel > SKILL_MAX_LEVEL)
+
+
+
+
+	if (dwSkillLevel>SKILL_MAX_LEVEL)
 	{
 		m_playerStatus.aSkill[dwSlotIndex].fcurEfficientPercentage = 0.0f;
 		m_playerStatus.aSkill[dwSlotIndex].fnextEfficientPercentage = 0.0f;
 
 		TraceError("CPythonPlayer::SetSkillLevel(SlotIndex=%d, SkillLevel=%d)", dwSlotIndex, dwSkillLevel);
-
 		return;
 	}
 
@@ -1106,9 +1085,10 @@ void CPythonPlayer::SetSkillLevel_(DWORD dwSkillIndex, DWORD dwSkillGrade, DWORD
 	{
 		ResetSkillCoolTimeForSlot(dwSlotIndex);
 	}
-	
-	m_playerStatus.aSkill[dwSlotIndex].fcurEfficientPercentage	= LocaleService_GetSkillPower(dwSkillLevel) / 100.0f;
-	m_playerStatus.aSkill[dwSlotIndex].fnextEfficientPercentage = LocaleService_GetSkillPower(dwSkillLevel + 1) / 100.0f;
+
+	m_playerStatus.aSkill[dwSlotIndex].fcurEfficientPercentage = GetSkillPower(dwSkillLevel)/100.0f;
+	m_playerStatus.aSkill[dwSlotIndex].fnextEfficientPercentage = GetSkillPower(dwSkillLevel+1)/100.0f;
+
 }
 
 void CPythonPlayer::SetSkillCoolTime(DWORD dwSkillIndex)

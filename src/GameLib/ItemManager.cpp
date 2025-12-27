@@ -366,29 +366,6 @@ bool CItemManager::LoadItemTable(const char* c_szFileName)
 		}
 	}
 
-//!@#
-//	CItemData::TItemTable * table = (CItemData::TItemTable *) zObj.GetBuffer();
-//	for (DWORD i = 0; i < dwElements; ++i, ++table)
-//	{
-//		CItemData * pItemData;
-//		DWORD dwVnum = table->dwVnum;
-//
-//		TItemMap::iterator f = m_ItemMap.find(dwVnum);
-//
-//		if (m_ItemMap.end() == f)
-//		{
-//			pItemData = CItemData::New();
-//
-//			pItemData->LoadItemData(_getf("d:/ymir work/item/%05d.msm", dwVnum));
-//			m_ItemMap.insert(TItemMap::value_type(dwVnum, pItemData));
-//		}
-//		else
-//		{
-//			pItemData = f->second;
-//		}
-//		pItemData->SetItemTableData(table);
-//	}
-
 	delete [] pbData;
 	return true;
 }

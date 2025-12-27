@@ -2,6 +2,8 @@
 #include "EterLib/Camera.h"
 #include "EterLib/TextBar.h"
 
+#include <string>
+#include <utf8.h>
 #include <shlobj.h>
 
 PyObject* grpCreateTextBar(PyObject* poSelf, PyObject* poArgs)
@@ -830,35 +832,50 @@ PyObject * grpSaveScreenShotToPath(PyObject * poSelf, PyObject * poArgs)
 }
 // END_OF_SCREENSHOT_CWDSAVE
 
-PyObject * grpSaveScreenShot(PyObject * poSelf, PyObject * poArgs)
+PyObject* grpSaveScreenShot(PyObject* poSelf, PyObject* poArgs)
 {
-	struct tm * tmNow;
-	time_t ct;
+	time_t ct = time(nullptr);
+	tm tmNow{};
+	localtime_s(&tmNow, &ct);
 
-	ct = time(0);
-	tmNow = localtime(&ct);
+	wchar_t wPath[MAX_PATH + 256]{};
 
-	char szPath[MAX_PATH + 256];
-	SHGetSpecialFolderPath(NULL, szPath, CSIDL_PERSONAL, TRUE);
-	//GetTempPath();
-	strcat(szPath, "\\METIN2\\");
+	if (!SHGetSpecialFolderPathW(nullptr, wPath, CSIDL_PERSONAL, TRUE))
+	{
+		TraceError("SHGetSpecialFolderPathW failed");
+		return Py_BuildValue("(is)", FALSE, "");
+	}
 
-	if (-1 == _access(szPath, 0))
-		if (!CreateDirectory(szPath, NULL))
+	wcscat_s(wPath, L"\\METIN2\\");
+
+	if (_waccess(wPath, 0) == -1)
+	{
+		if (!CreateDirectoryW(wPath, nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
 		{
-			TraceError("Failed to create directory [%s]\n", szPath);
+			TraceError("Failed to create directory [%s]", WideToUtf8(wPath).c_str());
 			return Py_BuildValue("(is)", FALSE, "");
 		}
+	}
 
-	sprintf(szPath + strlen(szPath), "%02d%02d_%02d%02d%02d.jpg", 
-			tmNow->tm_mon + 1,
-			tmNow->tm_mday,
-			tmNow->tm_hour,
-			tmNow->tm_min,
-			tmNow->tm_sec);
+	wchar_t wFile[64]{};
+	swprintf_s(
+		wFile,
+		L"%02d%02d_%02d%02d%02d.jpg",
+		tmNow.tm_mon + 1,
+		tmNow.tm_mday,
+		tmNow.tm_hour,
+		tmNow.tm_min,
+		tmNow.tm_sec
+	);
 
-	BOOL bResult = CPythonGraphic::Instance().SaveScreenShot(szPath);
-	return Py_BuildValue("(is)", bResult, szPath);
+	wcscat_s(wPath, wFile);
+
+	// If SaveScreenShot accepts wide paths:
+	BOOL bResult = CPythonGraphic::Instance().SaveScreenShot(WideToUtf8(wPath).c_str());
+
+	// Python expects bytes -> return UTF-8
+	std::string pathUtf8 = WideToUtf8(wPath);
+	return Py_BuildValue("(is)", bResult, pathUtf8.c_str());
 }
 
 PyObject * grpSetGamma(PyObject * poSelf, PyObject * poArgs)

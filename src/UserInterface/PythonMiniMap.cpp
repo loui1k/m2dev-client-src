@@ -7,6 +7,7 @@
 #include "PythonMiniMap.h"
 #include "PythonBackground.h"
 #include "PythonCharacterManager.h"
+#include "PythonNonPlayer.h"
 #include "PythonGuild.h"
 
 #include "AbstractPlayer.h"
@@ -812,7 +813,7 @@ void CPythonMiniMap::__LoadAtlasMarkInfo()
 
 	// LOCALE
 	char szAtlasMarkInfoFileName[64+1];
-	_snprintf(szAtlasMarkInfoFileName, sizeof(szAtlasMarkInfoFileName), "%s/map/%s_point.txt", LocaleService_GetLocalePath(), rkMap.GetName().c_str());
+	_snprintf(szAtlasMarkInfoFileName, sizeof(szAtlasMarkInfoFileName), "%s/map/%s_point.txt", GetLocalePathCommon(), rkMap.GetName().c_str());
 	// END_OF_LOCALE
 
 	CTokenVectorMap stTokenVectorMap;
@@ -822,8 +823,6 @@ void CPythonMiniMap::__LoadAtlasMarkInfo()
 		Tracef(" CPythonMiniMap::__LoadAtlasMarkInfo File Load %s ERROR\n", szAtlasMarkInfoFileName);
 		return;
 	}
-
-	const std::string strType[TYPE_COUNT] = { "OPC", "OPCPVP", "OPCPVPSELF", "NPC", "MONSTER", "WARP", "WAYPOINT" };
 
 	for (DWORD i = 0; i < stTokenVectorMap.size(); ++i)
 	{
@@ -835,33 +834,43 @@ void CPythonMiniMap::__LoadAtlasMarkInfo()
 
 		const CTokenVector & rVector = stTokenVectorMap[szMarkInfoName];
 
-		const std::string & c_rstrType = rVector[0].c_str();
-		const std::string & c_rstrPositionX = rVector[1].c_str();
-		const std::string & c_rstrPositionY = rVector[2].c_str();
-		const std::string & c_rstrText = rVector[3].c_str();
+		const std::string& c_rstrPositionX = rVector[0].c_str();
+		const std::string& c_rstrPositionY = rVector[1].c_str();
+		const std::string& c_rstrVnum = rVector[2].c_str();
+		const DWORD c_dwVnum = atoi(c_rstrVnum.c_str());
 
-		TAtlasMarkInfo aAtlasMarkInfo;
-
-		for ( int i = 0; i < TYPE_COUNT; ++i)
+		const CPythonNonPlayer::TMobTable* c_pMobTable = CPythonNonPlayer::Instance().GetTable(c_dwVnum);
+		if (c_pMobTable)
 		{
-			if (0 == c_rstrType.compare(strType[i]))
-				aAtlasMarkInfo.m_byType = (BYTE)i;
-		}
-		aAtlasMarkInfo.m_fX = atof(c_rstrPositionX.c_str());
-		aAtlasMarkInfo.m_fY = atof(c_rstrPositionY.c_str());
-		aAtlasMarkInfo.m_strText = c_rstrText;
+			TAtlasMarkInfo aAtlasMarkInfo;
+			aAtlasMarkInfo.m_fX = atof(c_rstrPositionX.c_str());
+			aAtlasMarkInfo.m_fY = atof(c_rstrPositionY.c_str());
+			aAtlasMarkInfo.m_strText = c_pMobTable->szLocaleName;
+			if (c_pMobTable->bType == CActorInstance::TYPE_NPC)
+				aAtlasMarkInfo.m_byType = TYPE_NPC;
+			else if (c_pMobTable->bType == CActorInstance::TYPE_WARP)
+			{
+				aAtlasMarkInfo.m_byType = TYPE_WARP;
+				int iPos = aAtlasMarkInfo.m_strText.find(" ");
+				if (iPos >= 0)
+					aAtlasMarkInfo.m_strText[iPos] = 0;
 
-		aAtlasMarkInfo.m_fScreenX = aAtlasMarkInfo.m_fX / m_fAtlasMaxX * m_fAtlasImageSizeX - (float)m_WhiteMark.GetWidth() / 2.0f;
-		aAtlasMarkInfo.m_fScreenY = aAtlasMarkInfo.m_fY / m_fAtlasMaxY * m_fAtlasImageSizeY - (float)m_WhiteMark.GetHeight() / 2.0f;
+			}
+			else if (c_pMobTable->bType == CActorInstance::TYPE_STONE && c_dwVnum >= 20702 && c_dwVnum <= 20706)
+				aAtlasMarkInfo.m_byType = TYPE_NPC;
 
-		switch(aAtlasMarkInfo.m_byType)
-		{
+			aAtlasMarkInfo.m_fScreenX = aAtlasMarkInfo.m_fX / m_fAtlasMaxX * m_fAtlasImageSizeX - (float)m_WhiteMark.GetWidth() / 2.0f;
+			aAtlasMarkInfo.m_fScreenY = aAtlasMarkInfo.m_fY / m_fAtlasMaxY * m_fAtlasImageSizeY - (float)m_WhiteMark.GetHeight() / 2.0f;
+
+			switch (aAtlasMarkInfo.m_byType)
+			{
 			case TYPE_NPC:
 				m_AtlasNPCInfoVector.push_back(aAtlasMarkInfo);
 				break;
 			case TYPE_WARP:
 				m_AtlasWarpInfoVector.push_back(aAtlasMarkInfo);
 				break;
+			}
 		}
 	}
 }

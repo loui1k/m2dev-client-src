@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "FileLoader.h"
 #include <assert.h>
+#include <utf8.h>
 
 CMemoryTextFileLoader::CMemoryTextFileLoader()
 {
@@ -252,7 +253,9 @@ bool CDiskFileLoader::Open(const char* c_szFileName)
 	if (!c_szFileName[0])
 		return false;
 
-	m_fp = fopen(c_szFileName, "rb");
+	// UTF-8 → UTF-16 conversion for Unicode path support
+	std::wstring wFileName = Utf8ToWide(c_szFileName);
+	m_fp = _wfopen(wFileName.c_str(), L"rb");
 
 	if (!m_fp)
 		return false;

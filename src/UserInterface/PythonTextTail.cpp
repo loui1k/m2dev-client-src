@@ -10,6 +10,8 @@
 #include "Locale.h"
 #include "MarkManager.h"
 
+#include <utf8.h>
+
 const D3DXCOLOR c_TextTail_Player_Color = D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f);
 const D3DXCOLOR c_TextTail_Monster_Color = D3DXCOLOR(1.0f, 0.0f, 0.0f, 1.0f);
 const D3DXCOLOR c_TextTail_Item_Color = D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f);
@@ -211,113 +213,46 @@ void CPythonTextTail::ArrangeTextTail()
 
 	for (itor = m_CharacterTextTailList.begin(); itor != m_CharacterTextTailList.end(); ++itor)
 	{
-		TTextTail * pTextTail = *itor;
+		TTextTail* pTextTail = *itor;
 
-		float fxAdd = 0.0f;
-
-		// Mark 위치 업데이트
-		CGraphicMarkInstance * pMarkInstance = pTextTail->pMarkInstance;
-		CGraphicTextInstance * pGuildNameInstance = pTextTail->pGuildNameTextInstance;
+		CGraphicMarkInstance* pMarkInstance = pTextTail->pMarkInstance;
+		CGraphicTextInstance* pGuildNameInstance = pTextTail->pGuildNameTextInstance;
 		if (pMarkInstance && pGuildNameInstance)
 		{
 			int iWidth, iHeight;
-			int iImageHalfSize = pMarkInstance->GetWidth()/2 + c_fxMarkPosition;
+			int iImageHalfSize = pMarkInstance->GetWidth() / 2 + c_fxMarkPosition;
 			pGuildNameInstance->GetTextSize(&iWidth, &iHeight);
 
-			pMarkInstance->SetPosition(pTextTail->x - iWidth/2 - iImageHalfSize, pTextTail->y - c_fyMarkPosition);
+			pMarkInstance->SetPosition(pTextTail->x - iWidth / 2 - iImageHalfSize, pTextTail->y - c_fyMarkPosition);
 			pGuildNameInstance->SetPosition(pTextTail->x + iImageHalfSize, pTextTail->y - c_fyGuildNamePosition, pTextTail->z);
 			pGuildNameInstance->Update();
 		}
 
-		int iNameWidth, iNameHeight;
+		// Title & Name refactor
+		int iNameWidth = 0, iNameHeight = 0;
 		pTextTail->pTextInstance->GetTextSize(&iNameWidth, &iNameHeight);
 
-		// Title 위치 업데이트
-		CGraphicTextInstance * pTitle = pTextTail->pTitleTextInstance;
-		if (pTitle)
-		{			
-			int iTitleWidth, iTitleHeight;
-			pTitle->GetTextSize(&iTitleWidth, &iTitleHeight);
+		const float fxAdd = 4.0f;
 
-			fxAdd = 8.0f;
+		float nameShift = 0.0f;
+		if (pTextTail->pTitleTextInstance)
+			nameShift = 1.0f;
+		else if (pTextTail->pLevelTextInstance)
+			nameShift = 5.0f;
 
-			if (LocaleService_IsEUROPE()) // 독일어는 명칭이 길어 오른정렬
-			{
-				if( GetDefaultCodePage() == CP_ARABIC )
-				{
-					pTitle->SetPosition(pTextTail->x - (iNameWidth / 2) - iTitleWidth - 4.0f, pTextTail->y, pTextTail->z);
-				}
-				else
-				{
-					// pTitle->SetPosition(pTextTail->x - (iNameWidth / 2), pTextTail->y, pTextTail->z);
-					pTitle->SetPosition(pTextTail->x - ((iNameWidth / 2)-4.0f), pTextTail->y, pTextTail->z); // Space between level and alignment
-				}
-			}
-			else
-			{
-				pTitle->SetPosition(pTextTail->x - (iNameWidth / 2) - fxAdd, pTextTail->y, pTextTail->z);
-			}			
-			pTitle->Update();
+		float nameX = floorf((pTextTail->x + nameShift) + 0.5f);
+		float nameY = floorf(pTextTail->y + 0.5f);
 
-			// Level 위치 업데이트
-			CGraphicTextInstance * pLevel = pTextTail->pLevelTextInstance;
-			if (pLevel)
-			{
-				int iLevelWidth, iLevelHeight;
-				pLevel->GetTextSize(&iLevelWidth, &iLevelHeight);
-				
-				if (LocaleService_IsEUROPE()) // 독일어는 명칭이 길어 오른정렬
-				{
-					if( GetDefaultCodePage() == CP_ARABIC )
-					{
-						pLevel->SetPosition(pTextTail->x - (iNameWidth / 2) - iLevelWidth - iTitleWidth - 8.0f, pTextTail->y, pTextTail->z);
-					}
-					else
-					{
-						pLevel->SetPosition(pTextTail->x - (iNameWidth / 2) - iTitleWidth, pTextTail->y, pTextTail->z);
-					}
-				}
-				else
-				{
-					pLevel->SetPosition(pTextTail->x - (iNameWidth / 2) - fxAdd - iTitleWidth, pTextTail->y, pTextTail->z);
-				}
+		const float nameLeftEdge = pTextTail->x - (iNameWidth / 2.0f);
+		float cursor = nameLeftEdge - fxAdd;
 
-				pLevel->Update();
-			}
-		}
-		else
-		{
-			fxAdd = 4.0f;
+		// [Level] [Title] Name - LTR.
+		// It can be set for RTL - Name [Title] [Level] by adding the required check.
+		cursor = TextTailBiDi(pTextTail->pTitleTextInstance, cursor, nameY, pTextTail->z, fxAdd, EPlaceDir::Left);
+		cursor = TextTailBiDi(pTextTail->pLevelTextInstance, cursor, nameY, pTextTail->z, fxAdd, EPlaceDir::Left);
 
-			// Level 위치 업데이트
-			CGraphicTextInstance * pLevel = pTextTail->pLevelTextInstance;
-			if (pLevel)
-			{
-				int iLevelWidth, iLevelHeight;
-				pLevel->GetTextSize(&iLevelWidth, &iLevelHeight);
-				
-				if (LocaleService_IsEUROPE()) // 독일어는 명칭이 길어 오른정렬
-				{
-					if( GetDefaultCodePage() == CP_ARABIC )
-					{
-						pLevel->SetPosition(pTextTail->x - (iNameWidth / 2) - iLevelWidth - 4.0f, pTextTail->y, pTextTail->z);
-					}
-					else
-					{
-						pLevel->SetPosition(pTextTail->x - (iNameWidth / 2), pTextTail->y, pTextTail->z);
-					}
-				}
-				else
-				{
-					pLevel->SetPosition(pTextTail->x - (iNameWidth / 2) - fxAdd, pTextTail->y, pTextTail->z);
-				}
-
-				pLevel->Update();
-			}
-		}
-		
 		pTextTail->pTextInstance->SetColor(pTextTail->Color.r, pTextTail->Color.g, pTextTail->Color.b);
-		pTextTail->pTextInstance->SetPosition(pTextTail->x + fxAdd, pTextTail->y, pTextTail->z);
+		pTextTail->pTextInstance->SetPosition(nameX, nameY, pTextTail->z);
 		pTextTail->pTextInstance->Update();
 	}
 
@@ -721,10 +656,6 @@ void CPythonTextTail::SetItemTextTailOwner(DWORD dwVID, const char * c_szName)
 		}
 
 		std::string strName = c_szName;
-		static const std::string & strOwnership = ApplicationStringTable_GetString(IDS_POSSESSIVE_MORPHENE) == "" ? "'s" : ApplicationStringTable_GetString(IDS_POSSESSIVE_MORPHENE);
-		strName += strOwnership;
-
-
 		pTextTail->pOwnerTextInstance->SetTextPointer(ms_pFont);
 		pTextTail->pOwnerTextInstance->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_CENTER);
 		pTextTail->pOwnerTextInstance->SetValue(strName.c_str());
@@ -733,10 +664,10 @@ void CPythonTextTail::SetItemTextTailOwner(DWORD dwVID, const char * c_szName)
 
 		int xOwnerSize, yOwnerSize;
 		pTextTail->pOwnerTextInstance->GetTextSize(&xOwnerSize, &yOwnerSize);
-		pTextTail->yStart	= -2.0f;
-		pTextTail->yEnd		+= float(yOwnerSize + 4);
-		pTextTail->xStart	= fMIN(pTextTail->xStart, float(-xOwnerSize / 2 - 1));
-		pTextTail->xEnd		= fMAX(pTextTail->xEnd, float(xOwnerSize / 2 + 1));
+		pTextTail->yStart = -2.0f;
+		pTextTail->yEnd += float(yOwnerSize + 4);
+		pTextTail->xStart = fMIN(pTextTail->xStart, float(-xOwnerSize / 2 - 1));
+		pTextTail->xEnd = fMAX(pTextTail->xEnd, float(xOwnerSize / 2 + 1));
 	}
 	else
 	{
@@ -748,10 +679,10 @@ void CPythonTextTail::SetItemTextTailOwner(DWORD dwVID, const char * c_szName)
 
 		int xSize, ySize;
 		pTextTail->pTextInstance->GetTextSize(&xSize, &ySize);
-		pTextTail->xStart	= (float) (-xSize / 2 - 2);
-		pTextTail->yStart	= -2.0f;
-		pTextTail->xEnd		= (float) (xSize / 2 + 2);
-		pTextTail->yEnd		= (float) ySize;
+		pTextTail->xStart = (float) (-xSize / 2 - 2);
+		pTextTail->yStart = -2.0f;
+		pTextTail->xEnd = (float) (xSize / 2 + 2);
+		pTextTail->yEnd = (float) ySize;
 	}
 }
 
@@ -906,11 +837,7 @@ void CPythonTextTail::AttachTitle(DWORD dwVID, const char * c_szName, const D3DX
 		prTitle = CGraphicTextInstance::New();
 		prTitle->SetTextPointer(ms_pFont);
 		prTitle->SetOutline(true);
-
-		if (LocaleService_IsEUROPE())
-			prTitle->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_RIGHT);
-		else
-			prTitle->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_CENTER);
+		prTitle->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_LEFT);
 		prTitle->SetVerticalAlign(CGraphicTextInstance::VERTICAL_ALIGN_BOTTOM);
 	}
 
@@ -960,7 +887,7 @@ void CPythonTextTail::AttachLevel(DWORD dwVID, const char * c_szText, const D3DX
 		prLevel->SetTextPointer(ms_pFont);
 		prLevel->SetOutline(true);
 
-		prLevel->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_RIGHT);
+		prLevel->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_LEFT);
 		prLevel->SetVerticalAlign(CGraphicTextInstance::VERTICAL_ALIGN_BOTTOM);
 	}
 

@@ -12,7 +12,7 @@ class CItemData
 	public:
 		enum
 		{
-			ITEM_NAME_MAX_LEN = 24,
+			ITEM_NAME_MAX_LEN = 64,
 			ITEM_LIMIT_MAX_NUM = 2,
 			ITEM_VALUES_MAX_NUM = 6,
 			ITEM_SMALL_DESCR_MAX_LEN = 256,

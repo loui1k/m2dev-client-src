@@ -5,6 +5,7 @@
 #include "PythonWindowManager.h"
 
 #include "EterLib/StateManager.h"
+#include "UserInterface/Locale.h"
 
 BOOL g_bOutlineBoxEnable = FALSE;
 
@@ -781,16 +782,6 @@ namespace UI
 		return FALSE;
 	}
 
-	BOOL CWindow::OnIMEChangeCodePage()
-	{
-		long lValue;
-		if (PyCallClassMemberFunc(m_poHandler, "OnIMEChangeCodePage", BuildEmptyTuple(), &lValue))
-		if (0 != lValue)
-			return TRUE;
-
-		return FALSE;
-	}
-
 	BOOL CWindow::OnIMEOpenCandidateListEvent()
 	{
 		long lValue;
@@ -1053,6 +1044,9 @@ namespace UI
 		m_TextInstance.SetColor(0.78f, 0.78f, 0.78f);
 		m_TextInstance.SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_LEFT);
 		m_TextInstance.SetVerticalAlign(CGraphicTextInstance::VERTICAL_ALIGN_TOP);
+
+		m_baseDirection = ::IsRTL() ? CGraphicTextInstance::ETextDirection::RTL : CGraphicTextInstance::ETextDirection::LTR;
+		m_TextInstance.SetTextDirection(m_baseDirection);
 	}
 	CTextLine::~CTextLine()
 	{
@@ -1132,10 +1126,41 @@ namespace UI
 		return m_TextInstance.PixelPositionToCharacterPosition(lx);
 	}
 
+	void CTextLine::SetBaseDirection(int iDir)
+	{
+		if (iDir == 2)
+			m_baseDirection = CGraphicTextInstance::ETextDirection::RTL;
+		else if (iDir == 1)
+			m_baseDirection = CGraphicTextInstance::ETextDirection::LTR;
+		else
+			m_baseDirection = CGraphicTextInstance::ETextDirection::Auto;
+
+		// Apply paragraph direction to the text instance
+		m_TextInstance.SetTextDirection(m_baseDirection);
+
+		// Re-anchor immediately
+		OnChangePosition();
+	}
+
+	int CTextLine::GetBaseDirection() const
+	{
+		if (m_baseDirection == CGraphicTextInstance::ETextDirection::RTL)
+			return 2;
+		if (m_baseDirection == CGraphicTextInstance::ETextDirection::LTR)
+			return 1;
+		return 0;
+	}
+
 	void CTextLine::OnSetText(const char * c_szText)
 	{
 		m_TextInstance.SetValue(c_szText);
+
+		// Use the control's base direction (AUTO/LTR/RTL)
+		m_TextInstance.SetTextDirection(m_baseDirection);
 		m_TextInstance.Update();
+
+		// RTL anchor
+		OnChangePosition();
 	}
 
 	void CTextLine::OnUpdate()
@@ -1151,16 +1176,16 @@ namespace UI
 
 	void CTextLine::OnChangePosition()
 	{
-		// FOR_ARABIC_ALIGN
-		//if (m_TextInstance.GetHorizontalAlign() == CGraphicTextInstance::HORIZONTAL_ALIGN_ARABIC)
-		if( GetDefaultCodePage() == CP_ARABIC )
-		{
-			m_TextInstance.SetPosition(m_rect.right, m_rect.top);
-		}
+		bool bAnchorRTL = false;
+
+		if (m_baseDirection == CGraphicTextInstance::ETextDirection::RTL)
+			bAnchorRTL = true;
+		else if (m_baseDirection == CGraphicTextInstance::ETextDirection::LTR)
+			bAnchorRTL = false;
 		else
-		{
-			m_TextInstance.SetPosition(m_rect.left, m_rect.top);
-		}
+			bAnchorRTL = m_TextInstance.IsRTL(); // AUTO fallback
+
+		m_TextInstance.SetPosition(bAnchorRTL ? m_rect.right : m_rect.left, m_rect.top);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
@@ -2096,10 +2121,10 @@ namespace UI
 
 	void CDragButton::OnChangePosition()
 	{
-		m_x = std::max(m_x, m_restrictArea.left);
-		m_y = std::max(m_y, m_restrictArea.top);
-		m_x = std::min(m_x, std::max(0l, m_restrictArea.right - m_lWidth));
-		m_y = std::min(m_y, std::max(0l, m_restrictArea.bottom - m_lHeight));
+		m_x = (std::max)(m_x, m_restrictArea.left);
+		m_y = (std::max)(m_y, m_restrictArea.top);
+		m_x = (std::min)(m_x, (std::max)(0l, m_restrictArea.right - m_lWidth));
+		m_y = (std::min)(m_y, (std::max)(0l, m_restrictArea.bottom - m_lHeight));
 
 		m_rect.left = m_x;
 		m_rect.top = m_y;

@@ -143,9 +143,9 @@ static LPDIRECT3DVERTEXDECLARATION9 LoadBranchShader(LPDIRECT3DDEVICE9 pDx)
 
 	if (pDx->CreateVertexDeclaration(pBranchShaderDecl, &dwShader) != D3D_OK)
 	{
-		char szError[1024];
-		sprintf_s(szError, "Failed to create branch vertex shader.");
-		MessageBox(NULL, szError, "Vertex Shader Error", MB_ICONSTOP);
+		wchar_t szError[1024];
+		swprintf_s(szError, L"Failed to create branch vertex shader.");
+		MessageBoxW(NULL, szError, L"Vertex Shader Error", MB_ICONSTOP);
 	}
 
 	return dwShader;

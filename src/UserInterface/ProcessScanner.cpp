@@ -2,6 +2,7 @@
 #include "ProcessScanner.h"
 
 #include <tlhelp32.h>
+#include <utf8.h>
 
 static std::vector<CRCPair> gs_kVct_crcPair;
 static CRITICAL_SECTION gs_csData;
@@ -11,61 +12,64 @@ static HANDLE gs_hThread=NULL;
 
 void ScanProcessList(std::map<DWORD, DWORD>& rkMap_crcProc, std::vector<CRCPair>* pkVct_crcPair)
 {
-	SYSTEM_INFO si;
-	memset(&si, 0, sizeof(si));
-	GetSystemInfo(&si);
+    SYSTEM_INFO si{};
+    GetSystemInfo(&si);
 
-	PROCESSENTRY32 pro;
-    pro.dwSize = sizeof(PROCESSENTRY32);
+    PROCESSENTRY32W pro{};
+    pro.dwSize = sizeof(PROCESSENTRY32W);
 
-    LPPROCESSENTRY32 Entry;
-    Entry = &pro;
+    HANDLE processSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (processSnap == INVALID_HANDLE_VALUE)
+        return;
 
-    HANDLE process = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+    BOOL bOK = Process32FirstW(processSnap, &pro);
 
-    BOOL bOK = Process32First(process, Entry);
-
-    while(bOK)
+    while (bOK)
     {
-		HANDLE hProc = OpenProcess(PROCESS_VM_READ, FALSE, Entry->th32ProcessID);
-		if (hProc)
-		{
-			HANDLE hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, Entry->th32ProcessID);
-			if (hModuleSnap != INVALID_HANDLE_VALUE) 
-			{
-				MODULEENTRY32	me32;
-				memset(&me32, 0, sizeof(me32));
-				me32.dwSize = sizeof(MODULEENTRY32);
+        HANDLE hProc = OpenProcess(PROCESS_VM_READ, FALSE, pro.th32ProcessID);
+        if (hProc)
+        {
+            HANDLE hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pro.th32ProcessID);
+            if (hModuleSnap != INVALID_HANDLE_VALUE)
+            {
+                MODULEENTRY32W me32{};
+                me32.dwSize = sizeof(MODULEENTRY32W);
 
-				BOOL bRet = Module32First(hModuleSnap, &me32);
-				while (bRet) 
-				{
-					DWORD crcExtPath=GetCRC32((const char*)me32.szExePath, strlen(me32.szExePath));
+                BOOL bRet = Module32FirstW(hModuleSnap, &me32);
+                while (bRet)
+                {
+                    // Wide exe path -> UTF-8 bytes (for CRC / engine use)
+                    std::string exePathUtf8 = WideToUtf8(me32.szExePath);
 
-					std::map<DWORD, DWORD>::iterator f=rkMap_crcProc.find(crcExtPath);
-					if (rkMap_crcProc.end()==f)
-					{
-						DWORD crcProc=GetFileCRC32(me32.szExePath);
-						rkMap_crcProc.insert(std::make_pair(crcExtPath, crcProc));
-						pkVct_crcPair->push_back(std::make_pair(crcProc, (const char*)me32.szExePath));						
-					}
-					Sleep(1);
-						
-					ZeroMemory(&me32, sizeof(MODULEENTRY32));
-					me32.dwSize = sizeof(MODULEENTRY32);		
-					bRet = Module32Next(hModuleSnap, &me32);
-				}
+                    DWORD crcExtPath = GetCRC32(exePathUtf8.c_str(), (int)exePathUtf8.size());
 
-				CloseHandle(hModuleSnap);
-			}
+                    auto f = rkMap_crcProc.find(crcExtPath);
+                    if (f == rkMap_crcProc.end())
+                    {
+                        // Make sure GetFileCRC32 is Unicode-safe:
+                        DWORD crcProc = GetFileCRC32(me32.szExePath); // best
+                        rkMap_crcProc.insert(std::make_pair(crcExtPath, crcProc));
 
-			CloseHandle(hProc);		
-		}
+                        pkVct_crcPair->push_back(std::make_pair(crcProc, exePathUtf8));
+                    }
 
-	
-        bOK = Process32Next(process, Entry);
+                    Sleep(1);
+
+                    me32.dwSize = sizeof(MODULEENTRY32W);
+                    bRet = Module32NextW(hModuleSnap, &me32);
+                }
+
+                CloseHandle(hModuleSnap);
+            }
+
+            CloseHandle(hProc);
+        }
+
+        bOK = Process32NextW(processSnap, &pro);
+        pro.dwSize = sizeof(PROCESSENTRY32W);
     }
-    CloseHandle(process);
+
+    CloseHandle(processSnap);
 }
 
 void ProcessScanner_ReleaseQuitEvent()
@@ -122,8 +126,8 @@ void ProcessScanner_Thread(void* pv)
 bool ProcessScanner_Create()
 {
 	InitializeCriticalSection(&gs_csData);
-	gs_evReqExit=CreateEvent(NULL, FALSE, FALSE, "ProcessScanner_ReqExit");
-	gs_evResExit=CreateEvent(NULL, FALSE, FALSE, "ProcessScanner_ResExit");
+	gs_evReqExit=CreateEvent(NULL, FALSE, FALSE, L"ProcessScanner_ReqExit");
+	gs_evResExit=CreateEvent(NULL, FALSE, FALSE, L"ProcessScanner_ResExit");
 
 	gs_hThread=(HANDLE)_beginthread(ProcessScanner_Thread, 64*1024, NULL);
 	if (INVALID_HANDLE_VALUE==gs_hThread)

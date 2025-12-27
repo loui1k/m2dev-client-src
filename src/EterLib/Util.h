@@ -96,18 +96,5 @@ extern D3DXCOLOR TokenToColor(CTokenVector & rVector);
 
 #define GOTO_CHILD_NODE(TextFileLoader, Index) CTextFileLoader::CGotoChild Child(TextFileLoader, Index);
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-extern int CALLBACK EnumFontFamExProc(CONST LOGFONT* plogFont, CONST TEXTMETRIC* textMetric, DWORD dwWord, LPARAM lParam);
-extern int GetCharsetFromCodePage(WORD codePage);
-extern const char* GetFontFaceFromCodePageNT(WORD codePage);
-extern const char* GetFontFaceFromCodePage9x(WORD codePage);
-extern DWORD GetDefaultCodePage();
-extern const char * GetDefaultFontFace();
-extern const char*	GetFontFaceFromCodePage(WORD codePage);
-extern void SetDefaultFontFace(const char* fontFace);
-extern bool SetDefaultCodePage(DWORD codePage);
-extern void base64_decode(const char * str,char * resultStr);
-
 extern DWORD GetMaxTextureWidth();
 extern DWORD GetMaxTextureHeight();

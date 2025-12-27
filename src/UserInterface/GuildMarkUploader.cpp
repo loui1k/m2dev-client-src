@@ -1,7 +1,6 @@
 #include "StdAfx.h"
 #include "GuildMarkUploader.h"
 #include "Packet.h"
-#include "Test.h"
 
 #include "stb_image.h"
 #include "stb_image_write.h"
@@ -332,7 +331,7 @@ bool CGuildMarkUploader::__LoginState_RecvPhase()
 	if (kPacketPhase.phase==PHASE_LOGIN)
 	{
 #ifndef _IMPROVED_PACKET_ENCRYPTION_
-		const char* key = LocaleService_GetSecurityKey();
+		const char* key = GetSecurityKey();
 		SetSecurityMode(true, key);
 #endif
 

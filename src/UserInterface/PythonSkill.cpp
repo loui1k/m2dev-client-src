@@ -164,7 +164,7 @@ bool CPythonSkill::RegisterSkillTable(const char * c_szFileName)
 				rSkillData.byMaxLevel = maxLevel;
 		}
 
-		const std::string & c_strLevelLimit = TokenVector[TABLE_TOKEN_TYPE_LEVEL_LIMIT];		
+		const std::string & c_strLevelLimit = TokenVector[TABLE_TOKEN_TYPE_LEVEL_LIMIT];
 		if (!c_strLevelLimit.empty())
 		{
 			int levelLimit = atoi(c_strLevelLimit.c_str());
@@ -174,7 +174,7 @@ bool CPythonSkill::RegisterSkillTable(const char * c_szFileName)
 		const std::string & c_strPointPoly = TokenVector[TABLE_TOKEN_TYPE_POINT_POLY];
 
 		// OVERWRITE_SKILLPROTO_POLY
-		bool USE_SKILL_PROTO = LocaleService_IsCHEONMA() ? false : true;
+		bool USE_SKILL_PROTO = true;
 
 		switch (iVnum)
 		{
@@ -192,12 +192,12 @@ bool CPythonSkill::RegisterSkillTable(const char * c_szFileName)
 				USE_SKILL_PROTO = false;
 				break;
 		}
-		
+
 		if (!rSkillData.AffectDataVector.empty() && USE_SKILL_PROTO)
-		{	
+		{
 			TAffectData& affect = rSkillData.AffectDataVector[0];
 
-			if (strstr(c_strPointPoly.c_str(), "atk")		!= NULL	||
+			if (strstr(c_strPointPoly.c_str(), "atk")		!= NULL ||
 				strstr(c_strPointPoly.c_str(), "mwep")		!= NULL ||
 				strstr(c_strPointPoly.c_str(), "number")	!= NULL)
 			{
@@ -222,22 +222,21 @@ bool CPythonSkill::RegisterSkillTable(const char * c_szFileName)
 				string_replace_word(src_poly_atk.c_str(), src_poly_atk.length(),
 					"mwep", 4, "maxmwep", 7, affect.strAffectMaxFormula);
 				// END_OF_MAX
-								
+
 				switch (iVnum)
 				{
-					case 1: // 삼연참
+					case 1:
 						affect.strAffectMinFormula += "* 3";
 						affect.strAffectMaxFormula += "* 3";
-						break;					
+						break;
 				}
-				
 			}
 			else
 			{
 				affect.strAffectMinFormula = c_strPointPoly;
 				affect.strAffectMaxFormula = "";
-			}					
-		}		
+			}
+		}
 		// END_OF_OVERWRITE_SKILLPROTO_POLY
 	}
 
@@ -609,7 +608,7 @@ bool CPythonSkill::RegisterSkill(DWORD dwSkillIndex, const char * c_szFileName)
 
 	{
 		char szName[256];
-		sprintf(szName, "%dname", LocaleService_GetCodePage());
+		strncpy_s(szName, "name", _TRUNCATE);
 		if (!TextFileLoader.GetTokenString(szName, &SkillData.strName))
 			if (!TextFileLoader.GetTokenString("name", &SkillData.strName))
 			{
@@ -620,7 +619,7 @@ bool CPythonSkill::RegisterSkill(DWORD dwSkillIndex, const char * c_szFileName)
 
 	{
 		char szName[256];
-		sprintf(szName, "%ddescription", LocaleService_GetCodePage());
+		strncpy_s(szName, "description", _TRUNCATE);
 		if (!TextFileLoader.GetTokenString(szName, &SkillData.strDescription))
 			TextFileLoader.GetTokenString("description", &SkillData.strDescription);
 	}
@@ -635,7 +634,7 @@ bool CPythonSkill::RegisterSkill(DWORD dwSkillIndex, const char * c_szFileName)
 		CTokenVector * pConditionDataVector;
 
 		char szConditionData[256];
-		sprintf(szConditionData, "%dconditiondata", LocaleService_GetCodePage());
+		strncpy_s(szConditionData, "conditiondata", _TRUNCATE);
 
 		bool isConditionData=true;
 		if (!TextFileLoader.GetTokenVector(szConditionData, &pConditionDataVector))
@@ -658,7 +657,7 @@ bool CPythonSkill::RegisterSkill(DWORD dwSkillIndex, const char * c_szFileName)
 		CTokenVector * pAffectDataVector;
 
 		char szAffectData[256];
-		sprintf(szAffectData, "%daffectdata", LocaleService_GetCodePage());
+		strncpy_s(szAffectData, "affectdata", _TRUNCATE);
 
 		bool isAffectData=true;
 		if (!TextFileLoader.GetTokenVector(szAffectData, &pAffectDataVector))
@@ -683,7 +682,7 @@ bool CPythonSkill::RegisterSkill(DWORD dwSkillIndex, const char * c_szFileName)
 		CTokenVector * pGradeDataVector;
 
 		char szGradeData[256];
-		sprintf(szGradeData, "%dgradedata", LocaleService_GetCodePage());
+		strncpy_s(szGradeData, "gradedata", _TRUNCATE);
 
 		if (TextFileLoader.GetTokenVector(szGradeData, &pGradeDataVector))
 		{
@@ -1280,68 +1279,59 @@ float CPythonSkill::SSkillData::ProcessFormula(CPoly * pPoly, float fSkillLevel,
 	return pPoly->Eval();
 }
 
-const char * CPythonSkill::SSkillData::GetAffectDescription(DWORD dwIndex, float fSkillLevel)
+static void ReplaceFirst(std::string& s, const char* needle, const std::string& repl)
+{
+	size_t pos = s.find(needle);
+	if (pos != std::string::npos)
+		s.replace(pos, strlen(needle), repl);
+}
+
+const char* CPythonSkill::SSkillData::GetAffectDescription(DWORD dwIndex, float fSkillLevel)
 {
 	if (dwIndex >= AffectDataVector.size())
 		return NULL;
 
-	const std::string & c_rstrAffectDescription = AffectDataVector[dwIndex].strAffectDescription;
-	const std::string & c_rstrAffectMinFormula = AffectDataVector[dwIndex].strAffectMinFormula;
-	const std::string & c_rstrAffectMaxFormula = AffectDataVector[dwIndex].strAffectMaxFormula;
+	const std::string& desc = AffectDataVector[dwIndex].strAffectDescription;
+	const std::string& minF = AffectDataVector[dwIndex].strAffectMinFormula;
+	const std::string& maxF = AffectDataVector[dwIndex].strAffectMaxFormula;
 
 	CPoly minPoly;
 	CPoly maxPoly;
-	minPoly.SetStr(c_rstrAffectMinFormula.c_str());
-	maxPoly.SetStr(c_rstrAffectMaxFormula.c_str());
-	
-	// OVERWRITE_SKILLPROTO_POLY
+	minPoly.SetStr(minF.c_str());
+	maxPoly.SetStr(maxF.c_str());
+
 	float fMinValue = ProcessFormula(&minPoly, fSkillLevel);
 	float fMaxValue = ProcessFormula(&maxPoly, fSkillLevel);
 
-	if (fMinValue < 0.0)
-		fMinValue = - fMinValue;
-	if (fMaxValue < 0.0)
-		fMaxValue = - fMaxValue;
+	if (fMinValue < 0.0f) fMinValue = -fMinValue;
+	if (fMaxValue < 0.0f) fMaxValue = -fMaxValue;
 
-	if (CP_ARABIC == ::GetDefaultCodePage())
+	const bool wantsInt = (desc.find("%.0f") != std::string::npos);
+	if (wantsInt)
 	{
-		// #0000870: [M2AE] 한국어 모드일때 특정 아랍어 문장에서 크래쉬 발생 
-		static std::string strDescription;
-		strDescription = c_rstrAffectDescription;
-		int first = strDescription.find("%.0f");
-		if (first >= 0)
-		{
-			fMinValue = floorf(fMinValue);
+		fMinValue = floorf(fMinValue);
+		fMaxValue = floorf(fMaxValue);
+	}
 
-			char szMinValue[256];
-			_snprintf(szMinValue, sizeof(szMinValue), "%.0f", fMinValue);
-			strDescription.replace(first, 4, szMinValue);
-
-			int second = strDescription.find("%.0f", first);
-			if (second >= 0)
-			{
-				fMaxValue = floorf(fMaxValue);
-
-				char szMaxValue[256];
-				_snprintf(szMaxValue, sizeof(szMaxValue), "%.0f", fMaxValue);
-				strDescription.replace(second, 4, szMaxValue);
-			}
-		}
-		return strDescription.c_str();
+	char szMin[64], szMax[64];
+	if (wantsInt)
+	{
+		_snprintf(szMin, sizeof(szMin), "%.0f", fMinValue);
+		_snprintf(szMax, sizeof(szMax), "%.0f", fMaxValue);
 	}
 	else
 	{
-		if (strstr(c_rstrAffectDescription.c_str(), "%.0f"))
-		{
-			fMinValue = floorf(fMinValue);
-			fMaxValue = floorf(fMaxValue);
-		}
-
-		static char szDescription[64+1];
-		_snprintf(szDescription, sizeof(szDescription), c_rstrAffectDescription.c_str(), fMinValue, fMaxValue);
-		
-		return szDescription;
+		_snprintf(szMin, sizeof(szMin), "%.2f", fMinValue);
+		_snprintf(szMax, sizeof(szMax), "%.2f", fMaxValue);
 	}
+
+	static std::string out;
+	out = desc;
+
+	ReplaceFirst(out, "%.0f", szMin);
+	ReplaceFirst(out, "%.0f", szMax);
+
+	return out.c_str();
 }
 
 DWORD CPythonSkill::SSkillData::GetSkillCoolTime(float fSkillPoint)

@@ -4,6 +4,7 @@
 #include "StateManager.h"
 
 #include <comdef.h>
+#include <utf8.h>
 
 DWORD		CScreen::ms_diffuseColor = 0xffffffff;
 DWORD		CScreen::ms_clearColor = 0L;
@@ -669,8 +670,11 @@ BOOL CScreen::RestoreDevice()
 			if (FAILED(hrReset))
 			{
 				_com_error err(hrReset);
-				LPCTSTR errMsg = err.ErrorMessage();
-				TraceError(errMsg);
+				LPCWSTR errMsgW = err.ErrorMessage();   // wide string
+
+				std::string errUtf8 = WideToUtf8(errMsgW);
+				TraceError("%s", errUtf8.c_str());
+
 				return FALSE;
 			}
 			

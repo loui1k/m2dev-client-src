@@ -133,27 +133,36 @@ static void Discord_RegisterW(const wchar_t* applicationId, const wchar_t* comma
 extern "C" DISCORD_EXPORT void Discord_Register(const char* applicationId, const char* command)
 {
     wchar_t appId[32];
-    MultiByteToWideChar(CP_UTF8, 0, applicationId, -1, appId, 32);
+    int app = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, applicationId, -1, appId, 32);
+    if (app <= 0)
+        return;
 
     wchar_t openCommand[1024];
     const wchar_t* wcommand = nullptr;
     if (command && command[0]) {
         const auto commandBufferLen = sizeof(openCommand) / sizeof(*openCommand);
-        MultiByteToWideChar(CP_UTF8, 0, command, -1, openCommand, commandBufferLen);
+
+        int ok = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, command, -1, openCommand, commandBufferLen);
+        if (ok <= 0)
+            return;
+
         wcommand = openCommand;
     }
 
     Discord_RegisterW(appId, wcommand);
 }
 
-extern "C" DISCORD_EXPORT void Discord_RegisterSteamGame(const char* applicationId,
-                                                         const char* steamId)
+extern "C" DISCORD_EXPORT void Discord_RegisterSteamGame(const char* applicationId, const char* steamId)
 {
     wchar_t appId[32];
-    MultiByteToWideChar(CP_UTF8, 0, applicationId, -1, appId, 32);
+    int app = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, applicationId, -1, appId, 32);
+    if (app <= 0)
+        return;
 
     wchar_t wSteamId[32];
-    MultiByteToWideChar(CP_UTF8, 0, steamId, -1, wSteamId, 32);
+    int steam = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, steamId, -1, wSteamId, 32);
+    if (steam <= 0)
+        return;
 
     HKEY key;
     auto status = RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Valve\\Steam", 0, KEY_READ, &key);

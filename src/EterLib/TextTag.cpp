@@ -57,16 +57,24 @@ std::wstring GetTextTagOutputString(const wchar_t * src, int src_len)
 
         if (tag == TEXT_TAG_PLAIN || tag == TEXT_TAG_TAG)
         {
-            if (hyperlinkStep == 0)
+            // Show normal text (step 0) AND hyperlink visible text (step 2)
+            if (hyperlinkStep == 0 || hyperlinkStep == 2)
 			{
                 ++output_len;
 				dst += src[i];
 			}
         }
         else if (tag == TEXT_TAG_HYPERLINK_START)
-            hyperlinkStep = 1;
+            hyperlinkStep = 1;  // Start metadata (hidden)
         else if (tag == TEXT_TAG_HYPERLINK_END)
-            hyperlinkStep = 0;
+        {
+            // First |h: end metadata, start visible (1 -> 2)
+            // Second |h: end visible (2 -> 0)
+            if (hyperlinkStep == 1)
+                hyperlinkStep = 2;
+            else if (hyperlinkStep == 2)
+                hyperlinkStep = 0;
+        }
 
         i += len;
     }
@@ -98,7 +106,8 @@ int GetTextTagInternalPosFromRenderPos(const wchar_t * src, int src_len, int off
 		}
         else if (tag == TEXT_TAG_PLAIN || tag == TEXT_TAG_TAG)
         {
-            if (hyperlinkStep == 0)
+            // Show normal text (step 0) AND hyperlink visible text (step 2)
+            if (hyperlinkStep == 0 || hyperlinkStep == 2)
 			{
 				if (!color_tag)
 					internal_offset = i;
@@ -111,9 +120,16 @@ int GetTextTagInternalPosFromRenderPos(const wchar_t * src, int src_len, int off
 			}
         }
         else if (tag == TEXT_TAG_HYPERLINK_START)
-            hyperlinkStep = 1;
+            hyperlinkStep = 1;  // Start metadata (hidden)
         else if (tag == TEXT_TAG_HYPERLINK_END)
-            hyperlinkStep = 0;
+        {
+            // First |h: end metadata, start visible (1 -> 2)
+            // Second |h: end visible (2 -> 0)
+            if (hyperlinkStep == 1)
+                hyperlinkStep = 2;
+            else if (hyperlinkStep == 2)
+                hyperlinkStep = 0;
+        }
 
         i += len;
     }

@@ -7,6 +7,7 @@
 #include "PackLib/PackManager.h"
 
 #include "PythonLauncher.h"
+#include <utf8.h>
 
 CPythonLauncher::CPythonLauncher()
 {
@@ -150,7 +151,9 @@ bool CPythonLauncher::Create(const char* c_szProgramName)
 bool CPythonLauncher::RunCompiledFile(const char* c_szFileName)
 {
 	NANOBEGIN
-	FILE * fp = fopen(c_szFileName, "rb");
+	// UTF-8 → UTF-16 conversion for Unicode path support
+	std::wstring wFileName = Utf8ToWide(c_szFileName);
+	FILE * fp = _wfopen(wFileName.c_str(), L"rb");
 
 	if (!fp)
 		return false;

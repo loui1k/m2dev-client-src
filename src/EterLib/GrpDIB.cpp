@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "GrpDIB.h"
+#include <utf8.h>
 
 CGraphicDib::CGraphicDib()
 {
@@ -74,10 +75,17 @@ void CGraphicDib::SetBkMode(int iBkMode)
 	::SetBkMode(m_hDC, iBkMode);
 }
 
-void CGraphicDib::TextOut(int ix, int iy, const char * c_szText)
+void CGraphicDib::TextOut(int ix, int iy, const char* c_szText)
 {
-	::SetBkColor(m_hDC, 0);	
-	::TextOut(m_hDC, ix, iy, c_szText, strlen(c_szText));
+	::SetBkColor(m_hDC, 0);
+
+	if (!c_szText || !*c_szText)
+		return;
+
+	std::wstring wText = Utf8ToWide(c_szText);
+
+	if (!wText.empty())
+		::TextOutW(m_hDC, ix, iy, wText.c_str(), (int)wText.length());
 }
 
 void CGraphicDib::Put(HDC hDC, int x, int y)

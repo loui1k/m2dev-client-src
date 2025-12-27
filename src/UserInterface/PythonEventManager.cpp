@@ -985,19 +985,19 @@ void CPythonEventManager::__InsertLine(TEventSet& rEventSet, BOOL isCenter, int 
 			int textWidth;
 			int textHeight;
 			rEventSet.pCurrentTextLine->GetTextSize(&textWidth,&textHeight);
-			if (GetDefaultCodePage() == CP_1256)
+
+			const bool prevRTL = (rEventSet.pCurrentTextLine && rEventSet.pCurrentTextLine->IsRTL());
+
+			kLine.ixLocal = prevRTL ? rEventSet.iWidth : 0;
+
+			if (iX_pos != 0)
 			{
-				kLine.ixLocal = rEventSet.iWidth;
-				if (iX_pos != 0)
+				if (prevRTL)
 				{
-					kLine.ixLocal -= iX_pos - 20;
+					kLine.ixLocal -= (iX_pos - 20);
 					kLine.ixLocal += textWidth / 2;
 				}
-			}
-			else
-			{
-				kLine.ixLocal = 0;
-				if (iX_pos != 0)
+				else
 				{
 					kLine.ixLocal += (iX_pos - 20);
 					kLine.ixLocal -= textWidth / 2;
@@ -1008,7 +1008,7 @@ void CPythonEventManager::__InsertLine(TEventSet& rEventSet, BOOL isCenter, int 
 		}
 		kLine.pInstance = rEventSet.pCurrentTextLine;
 		rEventSet.ScriptTextLineList.push_back(kLine);
-		__AddSpace(rEventSet, c_fLine_Temp);		
+		__AddSpace(rEventSet, c_fLine_Temp);
 	}
 
 	// DEFAULT_FONT
@@ -1040,16 +1040,8 @@ void CPythonEventManager::__InsertLine(TEventSet& rEventSet, BOOL isCenter, int 
 	}
 	else
 	{
-		if (GetDefaultCodePage() == CP_1256)
-		{
-			rEventSet.pCurrentTextLine->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_LEFT);
-			rEventSet.pCurrentTextLine->SetPosition(rEventSet.ix + rEventSet.iWidth, rEventSet.iy + rEventSet.iyLocal);
-		}
-		else
-		{
-			rEventSet.pCurrentTextLine->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_LEFT);
-			rEventSet.pCurrentTextLine->SetPosition(rEventSet.ix, rEventSet.iy + rEventSet.iyLocal);
-		}		
+		rEventSet.pCurrentTextLine->SetHorizonalAlign(CGraphicTextInstance::HORIZONTAL_ALIGN_LEFT);
+		rEventSet.pCurrentTextLine->SetPosition(rEventSet.ix, rEventSet.iy + rEventSet.iyLocal);
 	}
 
 	rEventSet.iCurrentLetter = 0;
@@ -1073,10 +1065,8 @@ void CPythonEventManager::RefreshLinePosition(TEventSet * pEventSet)
 	}
 	else
 	{
-		if (GetDefaultCodePage() == CP_1256)
-			ixTextPos = pEventSet->ix+pEventSet->iWidth;
-		else
-			ixTextPos = pEventSet->ix;
+		const bool isRTL = (pEventSet->pCurrentTextLine && pEventSet->pCurrentTextLine->IsRTL());
+		ixTextPos = isRTL ? (pEventSet->ix + pEventSet->iWidth) : pEventSet->ix;
 	}
 	pEventSet->pCurrentTextLine->SetPosition(ixTextPos, pEventSet->iy + pEventSet->iyLocal);
 }

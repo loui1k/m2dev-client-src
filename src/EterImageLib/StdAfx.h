@@ -24,16 +24,21 @@
 
 inline void _TraceForImage(const char* c_szFormat, ...)
 {
-	va_list args;
-	va_start(args, c_szFormat);
-	
-	static char szBuf[1024];
-	_vsnprintf(szBuf, sizeof(szBuf), c_szFormat, args);
+    va_list args;
+    va_start(args, c_szFormat);
+
+    static char szBuf[1024];
+    _vsnprintf_s(szBuf, sizeof(szBuf), _TRUNCATE, c_szFormat, args);
+
 #ifdef _DEBUG
-	OutputDebugString(szBuf);
+    wchar_t wBuf[1024];
+    MultiByteToWideChar(CP_UTF8, 0, szBuf, -1, wBuf, _countof(wBuf));
+    OutputDebugStringW(wBuf);
 #endif
-	va_end(args);
-	printf(szBuf);
+
+    va_end(args);
+
+    fputs(szBuf, stdout);
 }
 
 #pragma warning(default:4018)

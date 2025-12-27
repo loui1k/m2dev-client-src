@@ -3,8 +3,10 @@
 #include "PythonApplication.h"
 #include "EterLib/Camera.h"
 #include "PackLib/PackManager.h"
+#include "EterBase/tea.h"
 
 #include <stb_image.h>
+#include <utf8.h>
 
 extern D3DXCOLOR g_fSpecularColor;
 extern BOOL bVisibleNotice = true;
@@ -29,7 +31,7 @@ PyObject* appShowWebPage(PyObject* poSelf, PyObject* poArgs)
 
 	CPythonApplication::Instance().ShowWebPage(
 		szWebPage,
-		rcWebPage		
+		rcWebPage
 	);
 	return Py_BuildNone();
 }
@@ -215,79 +217,7 @@ PyObject* appSetFrameSkip(PyObject* poSelf, PyObject* poArgs)
 }
 
 // LOCALE
-
-PyObject* appForceSetLocale(PyObject* poSelf, PyObject* poArgs)
-{
-	char* szName;
-	if (!PyTuple_GetString(poArgs, 0, &szName))
-		return Py_BuildException();
-
-	char* szLocalePath;
-	if (!PyTuple_GetString(poArgs, 1, &szLocalePath))
-		return Py_BuildException();
-	
-	LocaleService_ForceSetLocale(szName, szLocalePath);
-
-	return Py_BuildNone();
-}
-
-PyObject* appGetLocaleServiceName(PyObject* poSelf, PyObject* poArgs)
-{
-	return Py_BuildValue("s", LocaleService_GetName());
-}
-
-// 
 bool LoadLocaleData(const char* localePath);
-
-PyObject* appSetCHEONMA(PyObject* poSelf, PyObject* poArgs)
-{
-	int enable;
-	if (!PyTuple_GetInteger(poArgs, 0, &enable))
-		return Py_BuildException();
-	
-	LocaleService_SetCHEONMA(enable ? true : false);
-	return Py_BuildNone();
-}
-
-PyObject* appIsCHEONMA(PyObject* poSelf, PyObject* poArgs)
-{
-	return Py_BuildValue("i", LocaleService_IsCHEONMA());
-}
-
-#include "EterBase/tea.h"
-
-PyObject* appLoadLocaleAddr(PyObject* poSelf, PyObject* poArgs)
-{
-	char* addrPath;
-	if (!PyTuple_GetString(poArgs, 0, &addrPath))
-		return Py_BuildException();
-
-	FILE* fp = fopen(addrPath, "rb");
-	if (!fp)
-		return Py_BuildException();
-
-	fseek(fp, 0, SEEK_END);
-
-	int size = ftell(fp);
-	char* enc = (char*)_alloca(size);
-	fseek(fp, 0, SEEK_SET);
-	fread(enc, size, 1, fp);
-	fclose(fp);
-
-	static const unsigned char key[16] = {
-		0x82, 0x1b, 0x34, 0xae,
-		0x12, 0x3b, 0xfb, 0x17,
-		0xd7, 0x2c, 0x39, 0xae,
-		0x41, 0x98, 0xf1, 0x63
-	};
-
-	char* buf = (char*)_alloca(size);
-	//int decSize = 
-	tea_decrypt((unsigned long*)buf, (const unsigned long*)enc, (const unsigned long*)key, size);
-	unsigned int retSize = *(unsigned int*)buf;
-	char* ret = buf + sizeof(unsigned int);
-	return Py_BuildValue("s#", ret, retSize);
-}
 
 PyObject* appLoadLocaleData(PyObject* poSelf, PyObject* poArgs)
 {
@@ -300,19 +230,19 @@ PyObject* appLoadLocaleData(PyObject* poSelf, PyObject* poArgs)
 
 PyObject* appGetLocaleName(PyObject* poSelf, PyObject* poArgs)
 {
-	return Py_BuildValue("s", LocaleService_GetLocaleName());
+	return Py_BuildValue("s", GetLocaleName());
 }
 
 PyObject* appGetLocalePath(PyObject* poSelf, PyObject* poArgs)
 {
-	return Py_BuildValue("s", LocaleService_GetLocalePath());
+	return Py_BuildValue("s", GetLocalePath());
+}
+
+PyObject* appGetLocalePathCommon(PyObject* poSelf, PyObject* poArgs)
+{
+	return Py_BuildValue("s", GetLocalePathCommon());
 }
 // END_OF_LOCALE
-
-PyObject* appGetDefaultCodePage(PyObject* poSelf, PyObject* poArgs)
-{
-	return Py_BuildValue("i", LocaleService_GetCodePage());
-}
 
 #ifdef __VTUNE__
 
@@ -353,32 +283,31 @@ PyObject* appIsExistFile(PyObject* poSelf, PyObject* poArgs)
 
 PyObject* appGetFileList(PyObject* poSelf, PyObject* poArgs)
 {
-	char* szFilter;
+	char* szFilter = nullptr;
 	if (!PyTuple_GetString(poArgs, 0, &szFilter))
 		return Py_BuildException();
 
-	PyObject* poList=PyList_New(0);
+	std::wstring wFilter = Utf8ToWide(szFilter ? szFilter : "");
 
-	WIN32_FIND_DATA wfd;
-	memset(&wfd, 0, sizeof(wfd));
+	PyObject* poList = PyList_New(0);
 
-	HANDLE hFind = FindFirstFile(szFilter, &wfd);
+	WIN32_FIND_DATAW wfd{};
+	HANDLE hFind = FindFirstFileW(wFilter.c_str(), &wfd);
 	if (hFind != INVALID_HANDLE_VALUE)
-	{	
+	{
 		do
 		{
-			PyObject* poFileName=PyString_FromString(wfd.cFileName) ;
+			std::string filenameUtf8 = WideToUtf8(wfd.cFileName);
+			PyObject* poFileName = PyString_FromString(filenameUtf8.c_str());
 			PyList_Append(poList, poFileName);
-		} 			
-		while (FindNextFile(hFind, &wfd));
-		
+			Py_DECREF(poFileName);
+		} while (FindNextFileW(hFind, &wfd));
 
 		FindClose(hFind);
 	}
 
 	return poList;
 }
-
 
 PyObject* appUpdateGame(PyObject* poSelf, PyObject* poArgs)
 {
@@ -1093,47 +1022,20 @@ PyObject * appSetGuildMarkPath(PyObject * poSelf, PyObject * poArgs)
 	if (!PyTuple_GetString(poArgs, 0, &path))
 		return Py_BuildException();
 
-    char newPath[256];
-    char * ext = strstr(path, ".tga");
+	char newPath[256];
+	char * ext = strstr(path, ".tga");
 
-    if (ext)
-    {
+	if (ext)
+	{
 		int extPos = ext - path;
-        strncpy(newPath, path, extPos);
-        newPath[extPos] = '\0';
-    }
-    else
-        strncpy(newPath, path, sizeof(newPath)-1);
-	
+		strncpy(newPath, path, extPos);
+		newPath[extPos] = '\0';
+	}
+	else
+		strncpy(newPath, path, sizeof(newPath)-1);
+
 	CGuildMarkManager::Instance().SetMarkPathPrefix(newPath);
 	return Py_BuildNone();
-}
-
-PyObject* appIsDevStage(PyObject* poSelf, PyObject* poArgs)
-{
-	int nIsDevelopmentStage = 0;
-#if defined(LOCALE_SERVICE_STAGE_DEVELOPMENT)
-	nIsDevelopmentStage = 1;
-#endif
-	return Py_BuildValue("i", nIsDevelopmentStage);
-}
-
-PyObject* appIsTestStage(PyObject* poSelf, PyObject* poArgs)
-{
-	int nIsTestStage = 0;
-#if defined(LOCALE_SERVICE_STAGE_TEST)
-	nIsTestStage = 1;
-#endif
-	return Py_BuildValue("i", nIsTestStage);
-}
-
-PyObject* appIsLiveStage(PyObject* poSelf, PyObject* poArgs)
-{
-	int nIsLiveStage = 0;
-#if !defined(LOCALE_SERVICE_STAGE_TEST) && !defined(LOCALE_SERVICE_STAGE_DEVELOPMENT)
-	nIsLiveStage = 1;
-#endif
-	return Py_BuildValue("i", nIsLiveStage);
 }
 
 PyObject* appLogoOpen(PyObject* poSelf, PyObject* poArgs)
@@ -1142,7 +1044,7 @@ PyObject* appLogoOpen(PyObject* poSelf, PyObject* poArgs)
 	if (!PyTuple_GetString(poArgs, 0, &szName))
 		return Py_BuildException();
 
-	int nIsSuccess = 1; //CPythonApplication::Instance().OnLogoOpen(szName);
+	int nIsSuccess = 1;
 	CMovieMan::Instance().PlayLogo(szName);
 
 	return Py_BuildValue("i", nIsSuccess);
@@ -1150,7 +1052,7 @@ PyObject* appLogoOpen(PyObject* poSelf, PyObject* poArgs)
 
 PyObject* appLogoUpdate(PyObject* poSelf, PyObject* poArgs)
 {
-	int nIsRun = 0; //CPythonApplication::Instance().OnLogoUpdate();
+	int nIsRun = 0;
 	return Py_BuildValue("i", nIsRun);
 }
 
@@ -1166,21 +1068,22 @@ PyObject* appLogoClose(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildNone();
 }
 
+PyObject* appIsRTL(PyObject* poSelf, PyObject* poArgs)
+{
+	return Py_BuildValue("i", IsRTL() ? 1 : 0);
+}
+
 void initapp()
 {
 	static PyMethodDef s_methods[] =
-	{	
-		{ "IsDevStage",					appIsDevStage,					METH_VARARGS },
-		{ "IsTestStage",				appIsTestStage,					METH_VARARGS },
-		{ "IsLiveStage",				appIsLiveStage,					METH_VARARGS },
-
+	{
 		// TEXTTAIL_LIVINGTIME_CONTROL
 		{ "SetTextTailLivingTime",		appSetTextTailLivingTime,		METH_VARARGS },
 		// END_OF_TEXTTAIL_LIVINGTIME_CONTROL
-		
+
 		{ "EnablePerformanceTime",		appEnablePerformanceTime,		METH_VARARGS },
 		{ "SetHairColorEnable",			appSetHairColorEnable,			METH_VARARGS },
-		
+
 		{ "SetArmorSpecularEnable",		appSetArmorSpecularEnable,		METH_VARARGS },
 		{ "SetWeaponSpecularEnable",	appSetWeaponSpecularEnable,		METH_VARARGS },
 		{ "SetSkillEffectUpgradeEnable",appSetSkillEffectUpgradeEnable,	METH_VARARGS },
@@ -1273,20 +1176,13 @@ void initapp()
 		{ "GetTextFileLine",			appGetTextFileLine,				METH_VARARGS },
 
 		// LOCALE
-		{ "GetLocaleServiceName",		appGetLocaleServiceName,		METH_VARARGS },
 		{ "GetLocaleName",				appGetLocaleName,				METH_VARARGS },
 		{ "GetLocalePath",				appGetLocalePath,				METH_VARARGS },
-		{ "ForceSetLocale",				appForceSetLocale,				METH_VARARGS },
+		{ "GetLocalePathCommon",		appGetLocalePathCommon,			METH_VARARGS },
+		{ "LoadLocaleData",				appLoadLocaleData,				METH_VARARGS },
+		{ "IsRTL",						appIsRTL,						METH_VARARGS },
 		// END_OF_LOCALE
 
-		// CHEONMA
-		{ "LoadLocaleAddr",				appLoadLocaleAddr,				METH_VARARGS },
-		{ "LoadLocaleData",				appLoadLocaleData,				METH_VARARGS },
-		{ "SetCHEONMA",					appSetCHEONMA,					METH_VARARGS },
-		{ "IsCHEONMA",					appIsCHEONMA,					METH_VARARGS },
-		// END_OF_CHEONMA
-		
-		{ "GetDefaultCodePage",			appGetDefaultCodePage,			METH_VARARGS },
 		{ "SetControlFP",				appSetControlFP,				METH_VARARGS },
 		{ "SetSpecularSpeed",			appSetSpecularSpeed,			METH_VARARGS },
 
@@ -1305,6 +1201,7 @@ void initapp()
 		{ "OnLogoRender",				appLogoRender,					METH_VARARGS },
 		{ "OnLogoOpen",					appLogoOpen,					METH_VARARGS },
 		{ "OnLogoClose",				appLogoClose,					METH_VARARGS },
+	
 
 		{ NULL, NULL },
 	};

@@ -3,9 +3,7 @@
 
 #include "ItemData.h"
 
-CDynamicPool<CItemData>		CItemData::ms_kPool;
-
-extern DWORD GetDefaultCodePage();
+CDynamicPool<CItemData> CItemData::ms_kPool;
 
 CItemData* CItemData::New()
 {
@@ -98,59 +96,7 @@ void CItemData::SetDescription(const std::string& c_rstDesc)
 {
 	m_strDescription=c_rstDesc;
 }
-/*
-BOOL CItemData::LoadItemData(const char * c_szFileName)
-{
-	CTextFileLoader TextFileLoader;
 
-	if (!TextFileLoader.Load(c_szFileName))
-	{
-		//Lognf(1, "CItemData::LoadItemData(c_szFileName=%s) - FAILED", c_szFileName);
-		return FALSE;
-	}
-
-	TextFileLoader.SetTop();
-
-	TextFileLoader.GetTokenString("modelfilename", &m_strModelFileName);
-	TextFileLoader.GetTokenString("submodelfilename", &m_strSubModelFileName);
-	TextFileLoader.GetTokenString("dropmodelfilename", &m_strDropModelFileName);
-	TextFileLoader.GetTokenString("iconimagefilename", &m_strIconFileName);
-
-	char szDescriptionKey[32+1];
-	_snprintf(szDescriptionKey, 32, "%ddescription", GetDefaultCodePage());
-	if (!TextFileLoader.GetTokenString(szDescriptionKey, &m_strDescription))
-	{
-		TextFileLoader.GetTokenString("description", &m_strDescription);
-	}
-
-	// LOD Model File Name List
-	CTokenVector * pLODModelList;
-	if (TextFileLoader.GetTokenVector("lodmodellist", &pLODModelList))
-	{
-		m_strLODModelFileNameVector.clear();
-		m_strLODModelFileNameVector.resize(pLODModelList->size());
-
-		for (DWORD i = 0; i < pLODModelList->size(); ++i)
-		{
-			m_strLODModelFileNameVector[i] = pLODModelList->at(0);
-		}
-	}
-
-	// Attaching Data
-	// Item 에 Attaching Data 일단 없음.
-//	if (TextFileLoader.SetChildNode("attachingdata"))
-//	{
-//		if (!NRaceData::LoadAttachingData(TextFileLoader, &m_AttachingDataVector))
-//			return FALSE;
-//
-//		TextFileLoader.SetParentNode();
-//	}
-
-	__LoadFiles();
-
-	return TRUE;
-}
-*/
 void CItemData::SetDefaultItemData(const char * c_szIconFileName, const char * c_szModelFileName)
 {
 	if(c_szModelFileName)

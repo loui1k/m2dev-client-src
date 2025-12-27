@@ -139,7 +139,6 @@ namespace UI
 			virtual BOOL	OnIMEReturnEvent();
 			virtual BOOL	OnIMEKeyDownEvent(int ikey);
 
-			virtual BOOL	OnIMEChangeCodePage();
 			virtual BOOL	OnIMEOpenCandidateListEvent();
 			virtual BOOL	OnIMECloseCandidateListEvent();
 			virtual BOOL	OnIMEOpenReadingWndEvent();
@@ -298,6 +297,9 @@ namespace UI
 			
 			void GetTextSize(int* pnWidth, int* pnHeight);
 
+			void SetBaseDirection(int iDir);
+			int GetBaseDirection() const;
+
 		protected:
 			void OnUpdate();
 			void OnRender();
@@ -307,6 +309,7 @@ namespace UI
 
 		protected:
 			CGraphicTextInstance m_TextInstance;
+			CGraphicTextInstance::ETextDirection m_baseDirection;
 	};
 
 	class CNumberLine : public CWindow

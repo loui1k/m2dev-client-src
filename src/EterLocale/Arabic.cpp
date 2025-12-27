@@ -244,8 +244,10 @@ bool Arabic_IsComb2(wchar_t code)
 }
 
 size_t Arabic_MakeShape(wchar_t* src, size_t srcLen, wchar_t* dst, size_t dstLen)
-{	
-	assert(dstLen >= srcLen);
+{
+	// Runtime validation instead of assert (which is disabled in release builds)
+	if (!src || !dst || srcLen == 0 || dstLen < srcLen)
+		return 0;
 
 	const size_t srcLastIndex = srcLen - 1;
 

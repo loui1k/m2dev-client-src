@@ -2,6 +2,7 @@
 #include "EterLib/StateManager.h"
 #include "EterLib/JpegFile.h"
 #include "PythonGraphic.h"
+#include <utf8.h>
 
 bool g_isScreenShotKey = false;
 
@@ -307,7 +308,9 @@ bool CPythonGraphic::SaveScreenShot(const char * c_pszFileName)
 
 	if (g_isScreenShotKey)
 	{
-		FILE* srcFilePtr = fopen(c_pszFileName, "rb");
+		// UTF-8 → UTF-16 conversion for Unicode path support
+		std::wstring wFileName = Utf8ToWide(c_pszFileName);
+		FILE* srcFilePtr = _wfopen(wFileName.c_str(), L"rb");
 		if (srcFilePtr)
 		{
 			fseek(srcFilePtr, 0, SEEK_END);		
@@ -367,8 +370,7 @@ bool CPythonGraphic::SaveScreenShot(const char * c_pszFileName)
 
 			exifHeader[2] = sizeof(exifHeader) + imgDescLen;
 
-			FILE* dstFilePtr = fopen(c_pszFileName, "wb");
-			//FILE* dstFilePtr = fopen("temp.jpg", "wb");
+			FILE* dstFilePtr = _wfopen(wFileName.c_str(), L"wb");
 			if (dstFilePtr)
 			{
 				fwrite(head, sizeof(head), 1, dstFilePtr);

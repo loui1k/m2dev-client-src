@@ -4,6 +4,7 @@
 #include <time.h>
 #include <winsock.h>
 #include <imagehlp.h>
+#include <utf8.h>
 
 FILE* fException;
 
@@ -47,15 +48,18 @@ LONG __stdcall EterExceptionFilter(_EXCEPTION_POINTERS* pExceptionInfo)
 	fException = fopen("log/ErrorLog.txt", "wt");
 	if (fException)
 	{
-		char module_name[256];
+		wchar_t wModuleName[MAX_PATH]{};
 		time_t module_time;
 
-		HMODULE hModule = GetModuleHandle(NULL);
+		HMODULE hModule = GetModuleHandleW(nullptr);
 
-		GetModuleFileName(hModule, module_name, sizeof(module_name));
+		GetModuleFileNameW(hModule, wModuleName, MAX_PATH);
 		module_time = (time_t)GetTimestampForLoadedLibrary(hModule);
 
-		fprintf(fException, "Module Name: %s\n", module_name);
+		// Convert once for logging
+		std::string moduleNameUtf8 = WideToUtf8(wModuleName);
+
+		fprintf(fException, "Module Name: %s\n", moduleNameUtf8.c_str());
 		fprintf(fException, "Time Stamp: 0x%08x - %s\n", (unsigned int)module_time, ctime(&module_time));
 		fprintf(fException, "\n");
 		fprintf(fException, "Exception Type: 0x%08x\n", pExceptionInfo->ExceptionRecord->ExceptionCode);

@@ -129,9 +129,11 @@ class CPythonChat : public CSingleton<CPythonChat>, public IAbstractChat
 		{
 			int					m_ix;
 			int					m_iy;
+			int					m_iWidth;
 			int					m_iHeight;
 			int					m_iStep;
 			float				m_fEndPos;
+			int					m_iAlign;
 
 			int					m_iBoardState;
 			std::vector<int>	m_iMode;
@@ -153,8 +155,10 @@ class CPythonChat : public CSingleton<CPythonChat>, public IAbstractChat
 				m_ix = 0;
 				m_iy = 0;
 				m_fEndPos = 1.0f;
+				m_iWidth = 0;
 				m_iHeight = 0;
 				m_iStep = 15;
+				m_iAlign = 0;
 
 				m_iMode.clear();
 				m_iMode.resize(ms_iChatModeSize, 1);
@@ -182,6 +186,8 @@ class CPythonChat : public CSingleton<CPythonChat>, public IAbstractChat
 		void SetBoardState(DWORD dwID, int iState);
 		void SetPosition(DWORD dwID, int ix, int iy);
 		void SetHeight(DWORD dwID, int iHeight);
+		void SetWidth(DWORD dwID, int iWidth);
+		void SetAlign(DWORD dwID, int iAlign);
 		void SetStep(DWORD dwID, int iStep);
 		void ToggleChatMode(DWORD dwID, int iMode);
 		void EnableChatMode(DWORD dwID, int iMode);

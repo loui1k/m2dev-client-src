@@ -41,7 +41,11 @@ int CPythonApplication::OnLogoOpen(char* szName)
 
 	// Render File
 	WCHAR wFileName[ MAX_PATH ];
-	MultiByteToWideChar(CP_ACP, 0, szName, -1, wFileName, MAX_PATH);
+
+	int ok = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, szName, -1, wFileName, MAX_PATH);
+	if (ok <= 0)
+		return 0;
+
 	if(FAILED(m_pGraphBuilder->RenderFile(wFileName, NULL))) { return 0; }
 
 	IBaseFilter* pSrc;

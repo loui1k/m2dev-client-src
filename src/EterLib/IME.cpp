@@ -4,6 +4,8 @@
 #include "EterBase/Utils.h"
 #include "msctf.h"
 #include <oleauto.h>
+#include <algorithm>
+#include <utf8.h>
 
 #define COUNTOF(a)						( sizeof( a ) / sizeof( ( a )[0] ) )
 
@@ -30,9 +32,9 @@ wchar_t	CIME::m_wText[IMESTR_MAXLEN];
 #define _CHT_HKL_NEW_QUICK				((HKL)0xE00A0404)	// New Quick
 #define _CHT_HKL_HK_CANTONESE			((HKL)0xE00B0404)	// Hong Kong Cantonese
 
-#define CHT_IMEFILENAME1				"TINTLGNT.IME" // New Phonetic
-#define CHT_IMEFILENAME2				"CINTLGNT.IME" // New Chang Jie
-#define CHT_IMEFILENAME3				"MSTCIPHA.IME" // Phonetic 5.1
+#define CHT_IMEFILENAME1				L"TINTLGNT.IME" // New Phonetic
+#define CHT_IMEFILENAME2				L"CINTLGNT.IME" // New Chang Jie
+#define CHT_IMEFILENAME3				L"MSTCIPHA.IME" // Phonetic 5.1
 
 #define IMEID_CHT_VER42					(LANG_CHT | MAKEIMEVERSION(4, 2))	// New(Phonetic/ChanJie)IME98  : 4.2.x.x // Win98
 #define IMEID_CHT_VER43					(LANG_CHT | MAKEIMEVERSION(4, 3))	// New(Phonetic/ChanJie)IME98a : 4.3.x.x // Win2k
@@ -49,8 +51,8 @@ wchar_t	CIME::m_wText[IMESTR_MAXLEN];
 #define _CHS_HKL_SOGOU					((HKL)0xE0220804) // Sougou PinYin
 #define _CHS_HKL_GOOGLEPINYIN			((HKL)0xE0230804) // Google PinYin
 
-#define CHS_IMEFILENAME1			    "PINTLGNT.IME"		// MSPY1.5/2/3
-#define CHS_IMEFILENAME2			    "MSSCIPYA.IME"		// MSPY3 for OfficeXP
+#define CHS_IMEFILENAME1				L"PINTLGNT.IME"		// MSPY1.5/2/3
+#define CHS_IMEFILENAME2				L"MSSCIPYA.IME"		// MSPY3 for OfficeXP
 #define CHS_IMEFILENAME_QQPINYIN		"QQPINYIN.IME"		// QQ PinYin
 #define CHS_IMEFILENAME_SOGOUPY			"SOGOUPY.IME"		// Sougou PinYin
 #define CHS_IMEFILENAME_GOOGLEPINYIN2	"GOOGLEPINYIN2.IME"	// Google PinYin 2
@@ -89,10 +91,17 @@ bool CIME::ms_bCaptureInput = false;
 bool CIME::ms_bChineseIME = false;
 bool CIME::ms_bUseIMMCandidate = false;
 
+int CIME::ms_selbegin = 0;
+int CIME::ms_selend = 0;
+int CIME::ms_compCaret = 0;
+
+std::vector<CIME::SUndoState> CIME::ms_undo;
+std::vector<CIME::SUndoState> CIME::ms_redo;
+
 HWND CIME::ms_hWnd;
 HKL	CIME::ms_hklCurrent;
-char CIME::ms_szKeyboardLayout[KL_NAMELENGTH+1];
-OSVERSIONINFOA CIME::ms_stOSVI;
+wchar_t CIME::ms_szKeyboardLayout[KL_NAMELENGTH+1];
+OSVERSIONINFOW CIME::ms_stOSVI;
 
 HINSTANCE CIME::ms_hImm32Dll;
 HINSTANCE CIME::ms_hCurrentImeDll;
@@ -109,7 +118,7 @@ bool CIME::ms_bCandidateList;
 DWORD CIME::ms_dwCandidateCount;
 bool CIME::ms_bVerticalCandidate;
 int CIME::ms_iCandListIndexBase;
-WCHAR CIME::ms_wszCandidate[CIME::MAX_CANDLIST][MAX_CANDIDATE_LENGTH];
+WCHAR CIME::ms_wszCandidate[CIME::MAX_CANDLIST][CIME::MAX_CANDIDATE_LENGTH];
 DWORD CIME::ms_dwCandidateSelection;
 DWORD CIME::ms_dwCandidatePageSize;
 
@@ -117,7 +126,7 @@ DWORD CIME::ms_dwCandidatePageSize;
 bool CIME::ms_bReadingInformation;
 int CIME::ms_iReadingError = 0;
 bool CIME::ms_bHorizontalReading;
-std::vector<wchar_t>	CIME::ms_wstrReading;
+std::vector<wchar_t> CIME::ms_wstrReading;
 
 // Indicator
 wchar_t* CIME::ms_wszCurrentIndicator;
@@ -126,14 +135,6 @@ IIMEEventSink* CIME::ms_pEvent;
 
 int CIME::ms_ulbegin;
 int CIME::ms_ulend;
-
-UINT CIME::ms_uOutputCodePage = 0;
-UINT CIME::ms_uInputCodePage = 0;
-
-extern DWORD gs_codePage=0;
-extern DWORD GetDefaultCodePage();
-extern int ReadToken(const char* token);
-extern const char* FindToken(const char* begin, const char* end);
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -287,7 +288,7 @@ CIME::CIME()
 	m_bOnlyNumberMode = FALSE;
 	m_hOrgIMC = NULL;
 
-	m_bEnablePaste = false;
+	m_bEnablePaste = true;
 	m_bUseDefaultIME = false;
 }
 
@@ -296,6 +297,7 @@ CIME::~CIME()
 	SAFE_FREE_LIBRARY(ms_hCurrentImeDll);
 	SAFE_FREE_LIBRARY(ms_hImm32Dll);
 }
+
 #pragma warning(disable : 4996)
 bool CIME::Initialize(HWND hWnd)
 {
@@ -305,8 +307,8 @@ bool CIME::Initialize(HWND hWnd)
 
 	g_disableCicero.Initialize();
 
-	ms_stOSVI.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
-	GetVersionExA(&ms_stOSVI);
+	ms_stOSVI.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+	GetVersionExW(&ms_stOSVI);
 
 	bool bUnicodeImm = false;
 	// IMM in NT or Win98 supports Unicode
@@ -317,12 +319,13 @@ bool CIME::Initialize(HWND hWnd)
 	}
 
 	// Load ImmLock/ImmUnlock Function Proc
-    CHAR szPath[MAX_PATH+1];
+	wchar_t szPath[MAX_PATH + 1];
 	ms_bDisableIMECompletely = false;
-    
-	if(GetSystemDirectoryA(szPath, MAX_PATH+1)) {
-		strcat(szPath, "\\imm32.dll");
-		ms_hImm32Dll = LoadLibraryA(szPath);
+
+	if (GetSystemDirectoryW(szPath, MAX_PATH+1))
+	{
+		wcscat_s(szPath, L"\\imm32.dll");
+		ms_hImm32Dll = LoadLibraryW(szPath);
 		if(ms_hImm32Dll)
 		{
 			_ImmLockIMC		= (INPUTCONTEXT*(WINAPI *)(HIMC))	GetProcAddress(ms_hImm32Dll, "ImmLockIMC");
@@ -348,7 +351,7 @@ bool CIME::Initialize(HWND hWnd)
 
 	ms_bUILessMode = CTsfUiLessMode::SetupSinks() != FALSE;
 	CheckToggleState();
-	if ( ms_bUILessMode )
+	if (ms_bUILessMode)
 	{
 		ms_bChineseIME = ( GETPRIMLANG() == LANG_CHINESE ) && CTsfUiLessMode::CurrentInputLocaleIsIme();
 		CTsfUiLessMode::UpdateImeState();
@@ -423,17 +426,22 @@ void CIME::Clear()
 	ms_compLen = 0;
 	ms_ulbegin = 0;
 	ms_ulend = 0;
+
+	ms_selbegin = 0;
+	ms_selend = 0;
 }
 
 int CIME::GetReading(std::string & rstrText)
 {
 	char reading[IMEREADING_MAXLEN];
-	
+
 	if(ms_wstrReading.size() == 0)
 		return 0;
-	int readingLen = WideCharToMultiByte(ms_uOutputCodePage, 0, &ms_wstrReading[0], ms_wstrReading.size(), reading, sizeof(reading), NULL, NULL);
 
-	rstrText.append(GetCodePageText());
+	int readingLen = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, &ms_wstrReading[0], ms_wstrReading.size(), reading, sizeof(reading), NULL, NULL);
+	if (readingLen <= 0)
+		readingLen = 0;
+
 	rstrText.append(reading, reading + readingLen);
 
 	return rstrText.size();
@@ -460,84 +468,74 @@ void CIME::SetText(const char* szText, int len)
 	ms_ulbegin = 0;
 	ms_ulend = 0;
 
-	const char* begin = szText;
-	const char* end = begin + len;
-	const char* iter = FindToken(begin, end);
+	if (!szText)
+		len = 0;
 
-	int m_wTextLen = sizeof(m_wText)/sizeof(wchar_t);
+	if (len < 0 && szText)
+		len = (int)strlen(szText);
 
-	ms_lastpos = MultiByteToWideChar(ms_uInputCodePage, 0, begin, iter-begin, m_wText, m_wTextLen);
+	const int cap = (int)(sizeof(m_wText) / sizeof(m_wText[0])); // includes space for null
+	if (cap <= 0)
+		return;
 
-	if (iter < end)
-		ms_lastpos += MultiByteToWideChar(ReadToken(iter), 0, (iter+5), end-(iter+5), m_wText+ms_lastpos, m_wTextLen-ms_lastpos);
+	// Empty
+	if (!szText || len == 0)
+	{
+		m_wText[0] = L'\0';
+		ms_lastpos = 0;
+		ms_curpos = 0;
+		ms_selbegin = ms_selend = 0;
+		return;
+	}
 
-	ms_curpos = std::min(ms_curpos, ms_lastpos);
+	// Required wchar count (not including null)
+	int required = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, szText, len, nullptr, 0);
+	if (required <= 0)
+	{
+		// invalid UTF-8 -> clear
+		m_wText[0] = L'\0';
+		ms_lastpos = 0;
+		ms_curpos = 0;
+		ms_selbegin = ms_selend = 0;
+		return;
+	}
+
+	// Clamp to buffer capacity - 1 (reserve null)
+	int outChars = std::min(required, cap - 1);
+
+	// Convert
+	int written = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, szText, len, m_wText, outChars);
+	if (written <= 0)
+		written = 0;
+
+	m_wText[written] = L'\0';
+
+	ms_lastpos = written;
+	ms_curpos = ms_lastpos;
+	ms_selbegin = ms_selend = ms_curpos;
 }
 
-int  CIME::GetText(std::string & rstrText, bool addCodePage)
+int CIME::GetText(std::string& rstrText)
 {
-	int outCodePage = ms_uOutputCodePage;
-	int dataCodePage;
-	switch (outCodePage)
-	{
-		//case 1256: // ARABIC
-		case 1268: // VIETNAM
-			dataCodePage = CP_UTF8;
-			break;
-		default:
-			dataCodePage = outCodePage;
-	}
+	std::wstring w;
+	w.reserve((size_t)ms_lastpos + (size_t)ms_compLen + 8);
 
-	int len = 0;
-	char text[IMESTR_MAXLEN];
+	// before cursor
+	if (ms_curpos > 0)
+		w.append(m_wText, m_wText + ms_curpos);
 
-	len += WideCharToMultiByte(dataCodePage, 0, m_wText, ms_curpos, text, sizeof(text)-len, NULL, NULL);
-	len += WideCharToMultiByte(dataCodePage, 0, m_wszComposition, ms_compLen, text+len, sizeof(text)-len, NULL, NULL);
-	len += WideCharToMultiByte(dataCodePage, 0, m_wText+ms_curpos, ms_lastpos-ms_curpos, text+len, sizeof(text)-len, NULL, NULL);
+	// composition (uncommitted)
+	if (ms_compLen > 0)
+		w.append(m_wszComposition, m_wszComposition + ms_compLen);
 
-	int i;
-	for(i=0; i<len; ++i)
-		if((BYTE)text[i] > 0x7F) break;
+	// after cursor
+	if (ms_lastpos > ms_curpos)
+		w.append(m_wText + ms_curpos, m_wText + ms_lastpos);
 
-	if(i == len)
-	{
-		rstrText.append(text, text+len);
-	}
-	else
-	{
-		rstrText.append(text, text+i);
+	std::string utf8 = WideToUtf8(w);
+	rstrText.append(utf8);
 
-		//if (addCodePage)
-		//	rstrText.append(GetCodePageText());
-
-		rstrText.append(text+i, text+len);
-	}
-
-	return rstrText.size();
-}
-
-const char* CIME::GetCodePageText()
-{
-	static char szCodePage[16];
-
-	const int defCodePage = GetDefaultCodePage();
-	const int outCodePage = ms_uOutputCodePage;
-
-	if (outCodePage != defCodePage)
-	{
-		sprintf(szCodePage, "@%04d", outCodePage);
-	}
-	else
-	{
-		szCodePage[0] = 0;
-	}
-
-	return szCodePage;
-}
-
-int CIME::GetCodePage()
-{
-	return ms_uOutputCodePage;
+	return (int)utf8.size();
 }
 
 int CIME::GetCandidatePageCount()
@@ -550,7 +548,7 @@ int CIME::GetCandidateCount()
 	return ms_dwCandidateCount;
 }
 
-int  CIME::GetCandidate(DWORD index, std::string & rstrText)
+int CIME::GetCandidate(DWORD index, std::string & rstrText)
 {
 	if(index >= MAX_CANDLIST)
 		return 0;
@@ -564,10 +562,7 @@ int  CIME::GetCandidate(DWORD index, std::string & rstrText)
 		return 0;
 
 	char text[IMESTR_MAXLEN];
-	int len = ::WideCharToMultiByte(CP_UTF8, 0, wszText, wTextLen, text, sizeof(text), 0, 0);
-
-	rstrText.append("@9999");
-	rstrText.append(text, text+len);
+	rstrText.append(WideToUtf8(std::wstring(wszText, wszText + wTextLen)));
 
 	return wTextLen;
 }
@@ -632,31 +627,227 @@ void CIME::EnablePaste(bool bFlag)
 	m_bEnablePaste = bFlag;
 }
 
+namespace
+{
+	inline bool HasSelection()
+	{
+		return CIME::ms_selbegin != CIME::ms_selend;
+	}
+
+	inline void NormalizeSelection()
+	{
+		if (CIME::ms_selbegin > CIME::ms_selend)
+			std::swap(CIME::ms_selbegin, CIME::ms_selend);
+	}
+}
+
+bool CIME::CanUndo()
+{
+	return !ms_undo.empty();
+}
+
+bool CIME::CanRedo()
+{
+	return !ms_redo.empty();
+}
+
+void CIME::ClearUndoRedo()
+{
+	ms_undo.clear();
+	ms_redo.clear();
+}
+
+void CIME::PushUndoState()
+{
+	SUndoState st;
+	st.text = m_wText;
+	st.curpos   = ms_curpos;
+	st.lastpos  = ms_lastpos;
+	st.selbegin = ms_selbegin;
+	st.selend   = ms_selend;
+
+	ms_undo.push_back(std::move(st));
+	if (ms_undo.size() > MAX_UNDO)
+		ms_undo.erase(ms_undo.begin());
+	ms_redo.clear();
+}
+
+void CIME::RestoreState(const SUndoState& st)
+{
+	const std::string utf8 = WideToUtf8(st.text);
+	SetText(utf8.c_str(), (int)utf8.size());
+
+	ms_curpos = std::max(0, std::min(st.curpos, ms_lastpos));
+	ms_selbegin = std::max(0, std::min(st.selbegin, ms_lastpos));
+	ms_selend = std::max(0, std::min(st.selend, ms_lastpos));
+
+	if (ms_pEvent)
+		ms_pEvent->OnUpdate();
+}
+
+void CIME::Undo()
+{
+	if (ms_undo.empty())
+		return;
+
+	// push current into redo
+	SUndoState cur;
+	cur.text.assign(m_wText, m_wText + ms_lastpos);
+	cur.curpos = ms_curpos;
+	cur.lastpos = ms_lastpos;
+	cur.selbegin = ms_selbegin;
+	cur.selend = ms_selend;
+	ms_redo.push_back(std::move(cur));
+	if (ms_redo.size() > MAX_UNDO)
+		ms_redo.erase(ms_redo.begin());
+
+	// restore from undo
+	SUndoState st = std::move(ms_undo.back());
+	ms_undo.pop_back();
+
+	RestoreState(st);
+
+	if (ms_pEvent)
+		ms_pEvent->OnUpdate();
+}
+
+void CIME::Redo()
+{
+	if (ms_redo.empty())
+		return;
+
+	// push current into undo (WITHOUT clearing redo)
+	SUndoState cur;
+	cur.text.assign(m_wText, m_wText + ms_lastpos);
+	cur.curpos = ms_curpos;
+	cur.lastpos = ms_lastpos;
+	cur.selbegin = ms_selbegin;
+	cur.selend = ms_selend;
+
+	ms_undo.push_back(std::move(cur));
+	if (ms_undo.size() > MAX_UNDO)
+		ms_undo.erase(ms_undo.begin());
+
+	// restore from redo
+	SUndoState st = std::move(ms_redo.back());
+	ms_redo.pop_back();
+
+	RestoreState(st);
+
+	if (ms_pEvent)
+		ms_pEvent->OnUpdate();
+}
+
+void CIME::SelectAll()
+{
+	ms_selbegin = 0;
+	ms_selend = ms_lastpos;
+	ms_curpos = ms_lastpos;
+
+	if (ms_pEvent)
+		ms_pEvent->OnUpdate();
+}
+
+void CIME::DeleteSelection()
+{
+	NormalizeSelection();
+	if (!HasSelection())
+		return;
+
+	PushUndoState();
+
+	const int a = ms_selbegin;
+	const int b = ms_selend;
+	const int selLen = b - a;
+	if (selLen <= 0)
+		return;
+
+	const int tailCount = (ms_lastpos - b) + 1;
+	memmove(m_wText + a, m_wText + b, (size_t)tailCount * sizeof(wchar_t));
+
+	ms_lastpos -= selLen;
+	ms_curpos = a;
+
+	ms_selbegin = ms_selend = a;
+
+	if (ms_pEvent)
+		ms_pEvent->OnUpdate();
+}
+
+void CIME::CopySelectionToClipboard(HWND hWnd)
+{
+	NormalizeSelection();
+	if (!HasSelection())
+		return;
+
+	const int a = ms_selbegin;
+	const int b = ms_selend;
+	const int selLen = b - a;
+	if (selLen <= 0)
+		return;
+
+	if (!OpenClipboard(hWnd))
+		return;
+
+	EmptyClipboard();
+
+	const SIZE_T bytes = (SIZE_T)(selLen + 1) * sizeof(wchar_t);
+	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+	if (!hMem)
+	{
+		CloseClipboard();
+		return;
+	}
+
+	wchar_t* dst = (wchar_t*)GlobalLock(hMem);
+	if (!dst)
+	{
+		GlobalFree(hMem);
+		CloseClipboard();
+		return;
+	}
+
+	memcpy(dst, m_wText + a, (size_t)selLen * sizeof(wchar_t));
+	dst[selLen] = L'\0';
+
+	GlobalUnlock(hMem);
+
+	if (!SetClipboardData(CF_UNICODETEXT, hMem))
+		GlobalFree(hMem); // only free if SetClipboardData failed
+
+	CloseClipboard();
+}
+
+void CIME::CutSelectionToClipboard(HWND hWnd)
+{
+	CopySelectionToClipboard(hWnd);
+	DeleteSelection();
+}
+
 void CIME::PasteTextFromClipBoard()
 {
 	if (!m_bEnablePaste)
 		return;
 
-	if (!OpenClipboard(NULL))
+	if (!OpenClipboard(ms_hWnd))
 		return;
 
-	HANDLE handle = GetClipboardData(CF_TEXT);
-	char * buffer = (char*)GlobalLock(handle);
-	std::string strClipboard = buffer;
-	GlobalUnlock(handle);
+	// 1) Prefer Unicode clipboard
+	if (HANDLE hUni = GetClipboardData(CF_UNICODETEXT))
+	{
+		if (wchar_t* wbuf = (wchar_t*)GlobalLock(hUni))
+		{
+			InsertString(wbuf, (int)wcslen(wbuf));
+			GlobalUnlock(hUni);
+		}
+
+		CloseClipboard();
+		if (ms_pEvent) ms_pEvent->OnUpdate();
+		return;
+	}
+
 	CloseClipboard();
-
-	if (strClipboard.empty())
-		return;
-
-	const char* begin = strClipboard.c_str();
-	const char* end = begin + strClipboard.length();
-	wchar_t m_wText[IMESTR_MAXLEN];
-	int wstrLen = MultiByteToWideChar(ms_uInputCodePage, 0, begin, end-begin, m_wText, IMESTR_MAXLEN);
-
-	InsertString(m_wText, wstrLen);
-	if(ms_pEvent)
-		ms_pEvent->OnUpdate();
+	if (ms_pEvent) ms_pEvent->OnUpdate();
 }
 
 void CIME::FinalizeString(bool bSend)
@@ -713,6 +904,21 @@ int CIME::GetULEnd()
 	return ms_ulend;
 }
 
+int CIME::GetSelBegin()
+{
+	return ms_selbegin;
+}
+
+int CIME::GetSelEnd()
+{
+	return ms_selend;
+}
+
+void CIME::ClearSelection()
+{
+	ms_selbegin = ms_selend = ms_curpos;
+}
+
 void CIME::CloseCandidateList()
 {
 	ms_bCandidateList = false;
@@ -736,21 +942,8 @@ void CIME::ChangeInputLanguage()
 	ChangeInputLanguageWorker();
 	if (uLanguage != GETLANG())
 	{
-		// Korean IME always uses level 3 support.
-		// Other languages use the level that is specified by ImeUi_SetSupportLevel()
 		SetSupportLevel( ( GETPRIMLANG() == LANG_KOREAN ) ? 3 : ms_dwIMELevelSaved );
 	}
-
-	if(ms_pEvent)
-		ms_pEvent->OnChangeCodePage();
-
-	//HWND hwndImeDef = ImmGetDefaultIMEWnd(ms_hWnd);
-	//if ( hwndImeDef )
-	//{
-	//	// Fix for Zooty #3995: prevent CHT IME toobar from showing up
-	//	SendMessageA(hwndImeDef, WM_IME_CONTROL, IMC_OPENSTATUSWINDOW, 0);
-	//	SendMessageA(hwndImeDef, WM_IME_CONTROL, IMC_CLOSESTATUSWINDOW, 0);
-	//}
 }
 
 void CIME::ChangeInputLanguageWorker()
@@ -779,13 +972,21 @@ void CIME::IncCurPos()
 {
 	if (ms_curpos < ms_lastpos)
 	{
-		int pos = FindColorTagEndPosition(m_wText + ms_curpos, ms_lastpos - ms_curpos);
+		// Skip over tags (color tags, hyperlink tags, etc.)
+		int tagLen = 0;
+		std::wstring tagExtra;
+		int tag = GetTextTag(&m_wText[ms_curpos], ms_lastpos - ms_curpos, tagLen, tagExtra);
 
-		if (pos > 0)
-			ms_curpos = std::min(ms_lastpos, std::max(0, ms_curpos + (pos + 1)));
+		if (tag != TEXT_TAG_PLAIN && tagLen > 0)
+		{
+			// We're at the start of a tag - skip the entire tag
+			ms_curpos += tagLen;
+		}
 		else
+		{
+			// Normal character - move forward by 1
 			++ms_curpos;
-		//++ms_curpos;
+		}
 	}
 }
 
@@ -793,13 +994,40 @@ void CIME::DecCurPos()
 {
 	if (ms_curpos > 0)
 	{
-		int pos = FindColorTagStartPosition(m_wText + ms_curpos - 1, ms_curpos);
-		
-		if (pos > 0)
-			ms_curpos = std::min(ms_lastpos, std::max(0, ms_curpos - (pos + 1)));
-		else
-			--ms_curpos;
-		//--ms_curpos;
+		// Move back one position
+		--ms_curpos;
+
+		// If we landed in the middle of a tag, skip backward to the tag start
+		// Keep checking backward for tag starts until we find the beginning
+		while (ms_curpos > 0)
+		{
+			int tagLen = 0;
+			std::wstring tagExtra;
+
+			// Check if current position is a tag start
+			int tag = GetTextTag(&m_wText[ms_curpos], ms_lastpos - ms_curpos, tagLen, tagExtra);
+
+			if (tag != TEXT_TAG_PLAIN && tagLen > 0)
+			{
+				// We're at a tag start - this is good, stop here
+				break;
+			}
+
+			// Check if the character BEFORE us starts a tag that extends over our position
+			if (ms_curpos > 0)
+			{
+				int prevTag = GetTextTag(&m_wText[ms_curpos - 1], ms_lastpos - (ms_curpos - 1), tagLen, tagExtra);
+				if (prevTag != TEXT_TAG_PLAIN && tagLen > 1)
+				{
+					// Previous position starts a multi-char tag - move to it
+					--ms_curpos;
+					continue;
+				}
+			}
+
+			// Not in a tag, we're done
+			break;
+		}
 	}
 }
 
@@ -819,14 +1047,19 @@ void CIME::SetCurPos(int offset)
 	}
 	else
 	{
-		// offset은 보여지는 텍스트의 위치로 온다. 따라서 새로 계산해야함.
-		//ms_curpos = min(ms_lastpos, offset);
 		ms_curpos = std::min(ms_lastpos, GetTextTagInternalPosFromRenderPos(m_wText, ms_lastpos, offset));
 	}
 }
 
 void CIME::DelCurPos()
 {
+	// If there is a selection, delete it first
+	if (ms_selbegin != ms_selend)
+	{
+		DeleteSelection();
+		return;
+	}
+
 	if (ms_curpos < ms_lastpos)
 	{
 		int eraseCount = FindColorTagEndPosition(m_wText + ms_curpos, ms_lastpos - ms_curpos) + 1;
@@ -842,7 +1075,25 @@ void CIME::PasteString(const char * str)
 	const char * begin = str;
 	const char * end = str + strlen(str);
 	wchar_t m_wText[IMESTR_MAXLEN];
-	int wstrLen = MultiByteToWideChar(ms_uInputCodePage, 0, begin, end - begin, m_wText, IMESTR_MAXLEN);
+	int wstrLen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, begin, end - begin, m_wText, IMESTR_MAXLEN);
+
+	// Check if pasting a hyperlink (contains |H tag)
+	bool isHyperlink = false;
+	for (int i = 0; i < wstrLen - 1; ++i)
+	{
+		if (m_wText[i] == L'|' && m_wText[i + 1] == L'H')
+		{
+			isHyperlink = true;
+			break;
+		}
+	}
+
+	// If pasting hyperlink, always append to end (avoid cursor position issues)
+	if (isHyperlink)
+	{
+		ms_curpos = ms_lastpos;  // Move cursor to end first
+	}
+
 	InsertString(m_wText, wstrLen);
 	if(ms_pEvent)
 		ms_pEvent->OnUpdate();
@@ -851,16 +1102,42 @@ void CIME::PasteString(const char * str)
 /*---------------------------------------------------------------------------*/ /* Private */ 
 void CIME::InsertString(wchar_t* wString, int iSize)
 {
+	PushUndoState();
+
+	if (!wString || iSize <= 0)
+		return;
+
+	// Replace selection first
+	if (ms_selbegin != ms_selend)
+	{
+		DeleteSelection(); // sets ms_curpos to ms_selbegin and clears selection
+	}
+
+	if (ms_lastpos < 0) ms_lastpos = 0;
+	if (ms_curpos < 0) ms_curpos = 0;
+	if (ms_curpos > ms_lastpos) ms_curpos = ms_lastpos;
+
+	// Need room for NUL terminator
+	if (ms_lastpos + iSize >= IMESTR_MAXLEN)
+		return;
+
 	if (IsMax(wString, iSize))
 		return;
 
+	// Move tail including the existing NUL
 	if (ms_curpos < ms_lastpos)
-		memmove(m_wText+ms_curpos+iSize, m_wText+ms_curpos, sizeof(wchar_t)*(ms_lastpos-ms_curpos));
+	{
+		size_t tailChars = (size_t)(ms_lastpos - ms_curpos) + 1; // +1 for NUL
+		wmemmove(m_wText + ms_curpos + iSize, m_wText + ms_curpos, tailChars);
+	}
 
-	memcpy(m_wText+ms_curpos, wString, sizeof(wchar_t)*iSize);
+	wmemcpy(m_wText + ms_curpos, wString, (size_t)iSize);
 
 	ms_curpos += iSize;
 	ms_lastpos += iSize;
+
+	// Ensure termination
+	m_wText[ms_lastpos] = L'\0';
 }
 
 void CIME::OnChar(wchar_t c)
@@ -869,112 +1146,37 @@ void CIME::OnChar(wchar_t c)
 		if (!iswdigit(c))
 			return;
 
-	if (!__IsWritable(c))
+	if (c == 0x16)
 		return;
 
 	InsertString(&c, 1);
 }
 
-UINT CIME::GetCodePageFromLang(LANGID langid)
-{
-	unsigned pri_langid = PRIMARYLANGID(langid);
-	switch (pri_langid)
-	{
-		case LANG_JAPANESE:
-			//setlocale(LC_ALL, ".932");
-			return 932;
-		case LANG_KOREAN:
-			//setlocale(LC_ALL, ".949");
-			return 949;
-		case LANG_CHINESE:
-			{
-				switch (SUBLANGID(langid))
-				{
-					case SUBLANG_CHINESE_SIMPLIFIED:
-					case SUBLANG_CHINESE_SINGAPORE:
-						//setlocale(LC_ALL, ".936");
-						return 936;
-					case SUBLANG_CHINESE_TRADITIONAL:
-					case SUBLANG_CHINESE_MACAU:
-					case SUBLANG_CHINESE_HONGKONG:
-						//setlocale(LC_ALL, ".950");
-						return 950;
-				}
-			}
-			//setlocale(LC_ALL, ".936");
-			return 936;
-		case LANG_ARABIC:
-			return 1256;
-		case LANG_GREEK:
-			//setlocale(LC_ALL, ".1253");
-			return 1253;
-		case LANG_TURKISH:
-			//setlocale(LC_ALL, ".1254");
-			return 1254;
-		case LANG_HEBREW:
-			//setlocale(LC_ALL, ".1255");
-			return 1255;
-		case LANG_ESTONIAN:
-		case LANG_LATVIAN:
-		case LANG_LITHUANIAN:
-			//setlocale(LC_ALL, ".1257");
-			return 1257;
-		case LANG_VIETNAMESE:
-			return 1258;
-		case LANG_THAI:
-			//setlocale(LC_ALL, ".874");
-			return 874;
-		case LANG_CZECH:
-		case LANG_HUNGARIAN:
-		case LANG_POLISH:
-		case LANG_CROATIAN:
-		case LANG_MACEDONIAN:
-		case LANG_ROMANIAN:
-		case LANG_SLOVAK:
-		case LANG_SLOVENIAN:
-			//setlocale(LC_ALL, ".1250");
-			return 1250;
-		case LANG_RUSSIAN:
-		case LANG_BELARUSIAN:
-		case LANG_BULGARIAN:
-		case LANG_UKRAINIAN:
-			return 1251;
-		case LANG_GERMAN:
-			//_wsetlocale(LC_ALL, ".1252");
-			return 1252;
-		default:
-			//TraceError("UNKNOWN IME[%d]\n", langid);
-			//setlocale(LC_ALL, ".949");
-			return 1252;
-	}
-}
-
 void CIME::CompositionProcess(HIMC hImc)
 {
-	ms_compLen = ImmGetCompositionStringW(hImc, GCS_COMPSTR, m_wszComposition, sizeof(m_wszComposition))/sizeof(wchar_t);
+	LONG bytes = ImmGetCompositionStringW(hImc, GCS_COMPSTR, m_wszComposition, sizeof(m_wszComposition));
+	if (bytes <= 0)
+	{
+		ms_compLen = 0;
+		m_wszComposition[0] = L'\0';
+		return;
+	}
 
-	//OutputDebugStringW( L"Composition: " );
-	//OutputDebugStringW( m_wszComposition );
-	//for( int i=0; i < (int) ms_compLen * 2; i++ ) {
-	//	LPBYTE pbyData = (LPBYTE) m_wszComposition;
-	//	pbyData += i;
-	//	WCHAR tszName[32];
-
-	//	swprintf_s( tszName, L"%02X ", (unsigned int) *pbyData );
-	//	OutputDebugStringW( tszName );
-	//}
-	//OutputDebugStringW( L"\n" );
+	ms_compLen = (int)(bytes / (LONG)sizeof(wchar_t));
 
 	if (IsMax(m_wszComposition, ms_compLen))
 	{
 		ImmNotifyIME(hImc, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
 		ms_compLen = 0;
+		m_wszComposition[0] = L'\0';
 	}
 }
 
 void CIME::CompositionProcessBuilding(HIMC hImc)
 {
-	int textLen = WideCharToMultiByte(ms_uOutputCodePage, 0, m_wText, ms_lastpos, 0, 0, NULL, NULL);
+	int textLen = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, m_wText, ms_lastpos, nullptr, 0, nullptr, nullptr);
+	if (textLen <= 0)
+		textLen = 0;
 
 	if (textLen >= m_max)
 	{
@@ -982,28 +1184,19 @@ void CIME::CompositionProcessBuilding(HIMC hImc)
 		ms_compLen = 0;
 		return;
 	}
-	
+
 	ms_compLen = ImmGetCompositionStringW(hImc, GCS_COMPSTR, m_wszComposition, sizeof(m_wszComposition))/sizeof(wchar_t);
-
-	//OutputDebugStringW( L"Composition: " );
-	//OutputDebugStringW( m_wszComposition );
-	//for( int i=0; i < (int) ms_compLen * 2; i++ ) {
-	//	LPBYTE pbyData = (LPBYTE) m_wszComposition;
-	//	pbyData += i;
-	//	WCHAR tszName[32];
-
-	//	swprintf_s( tszName, L"%02X ", (unsigned int) *pbyData );
-	//	OutputDebugStringW( tszName );
-	//}
-	//OutputDebugStringW( L"\n" );
 }
 
 void CIME::ResultProcess(HIMC hImc)
 {
 	wchar_t temp[IMESTR_MAXLEN];
 
-	int len = ImmGetCompositionStringW(hImc, GCS_RESULTSTR, temp, sizeof(temp))/sizeof(wchar_t);
+	LONG bytes = ImmGetCompositionStringW(hImc, GCS_RESULTSTR, temp, sizeof(temp));
+	if (bytes <= 0)
+		return;
 
+	int len = (int)(bytes / (LONG)sizeof(wchar_t));
 	if (len <= 0)
 		return;
 
@@ -1023,62 +1216,70 @@ void CIME::AttributeProcess(HIMC hImc)
 	ms_ulend = end;
 }
 
+static const wchar_t* CandidateStringAt(const CANDIDATELIST* cl, UINT idx)
+{
+	if (!cl || idx >= cl->dwCount)
+		return L"";
+	const BYTE* base = reinterpret_cast<const BYTE*>(cl);
+	return reinterpret_cast<const wchar_t*>(base + cl->dwOffset[idx]);
+}
+
 void CIME::CandidateProcess(HIMC hImc)
 {
-	std::vector<BYTE>	abyCandidate;
-	DWORD dwCandidateLen = ImmGetCandidateListW(hImc, 0, NULL, 0);
-	abyCandidate.resize(dwCandidateLen);
-	if(dwCandidateLen > 0) {
-		ms_bCandidateList = true;
+	DWORD bytes = ImmGetCandidateListW(hImc, 0, nullptr, 0);
+	if (bytes == 0)
+		return;
 
-		CANDIDATELIST* lpCandidateList = (CANDIDATELIST*)(&abyCandidate[0]);
-		dwCandidateLen = ImmGetCandidateListW(hImc, 0, lpCandidateList, dwCandidateLen);
+	std::vector<BYTE> buf(bytes);
 
-		ms_dwCandidateSelection	= lpCandidateList->dwSelection;
-		ms_dwCandidateCount		= lpCandidateList->dwCount;
+	auto* cl = reinterpret_cast<CANDIDATELIST*>(buf.data());
+	DWORD got = ImmGetCandidateListW(hImc, 0, cl, bytes);
+	if (got == 0 || cl->dwCount == 0)
+		return;
 
-		int iStartOfPage = 0;
+	ms_bCandidateList = true;
+	ms_dwCandidateCount = cl->dwCount;
+	ms_dwCandidateSelection = cl->dwSelection;
 
-		if( GETLANG() == LANG_CHS ) {
-			// MSPY (CHS IME) has variable number of candidates in candidate window find where current page starts, and the size of current page
-			const int maxCandChar = 18 * (3 - sizeof(TCHAR));
-			UINT cChars = 0;
-			UINT i;
-			for (i = 0; i < ms_dwCandidateCount; i++)
-			{
-				UINT uLen = lstrlenW((LPWSTR)((DWORD)lpCandidateList + lpCandidateList->dwOffset[i])) + (3 - sizeof(WCHAR));
-				if (uLen + cChars > maxCandChar)
-				{
-					if (i > ms_dwCandidateSelection)
-					{
-						break;
-					}
-					iStartOfPage = i;
-					cChars = uLen;
-				}
-				else
-				{
-					cChars += uLen;
-				}
-			}
-			ms_dwCandidatePageSize	= i - iStartOfPage;
-		} else {
-			ms_dwCandidatePageSize	= MIN( lpCandidateList->dwPageSize, MAX_CANDLIST );
-			iStartOfPage = ms_bUILessMode ? lpCandidateList->dwPageStart : (ms_dwCandidateSelection / (MAX_CANDLIST - 1)) * (MAX_CANDLIST - 1);
-		}
+	UINT pageStart = 0;
 
-		ms_dwCandidateSelection = ( GETLANG() == LANG_CHS && !GetImeId() ) ? (DWORD)-1 : ms_dwCandidateSelection - iStartOfPage;
-
-		//printf( "SEL: %d, START: %d, PAGED: %d\n", ms_dwCandidateSelection, iStartOfPage, ms_dwCandidatePageSize );
-	    memset(&ms_wszCandidate, 0, sizeof(ms_wszCandidate));
-	    for(UINT i = iStartOfPage, j = 0; (DWORD)i < lpCandidateList->dwCount && j < ms_dwCandidatePageSize; i++, j++) {
-			wcscpy( ms_wszCandidate[j], (LPWSTR)( (DWORD)lpCandidateList + lpCandidateList->dwOffset[i] ) );
-	    }
-
-		// don't display selection in candidate list in case of Korean and old Chinese IME.
-		if ( GETPRIMLANG() == LANG_KOREAN || GETLANG() == LANG_CHT && !GetImeId() )
-			ms_dwCandidateSelection = (DWORD) -1;
+	if (ms_bUILessMode && cl->dwPageStart < cl->dwCount)
+	{
+		pageStart = cl->dwPageStart;
 	}
+	else
+	{
+		const UINT uiPage = (MAX_CANDLIST > 1) ? (MAX_CANDLIST - 1) : 1;
+		if (ms_dwCandidateSelection < cl->dwCount)
+			pageStart = (ms_dwCandidateSelection / uiPage) * uiPage;
+	}
+
+	UINT pageSize = 0;
+	if (cl->dwPageSize > 0)
+		pageSize = (UINT)std::min<DWORD>(cl->dwPageSize, (DWORD)MAX_CANDLIST);
+	else
+		pageSize = (UINT)std::min<DWORD>(cl->dwCount - pageStart, (DWORD)MAX_CANDLIST);
+
+	ms_dwCandidatePageSize = pageSize;
+
+	// selection relative to page (or none)
+	if (ms_dwCandidateSelection < cl->dwCount && ms_dwCandidateSelection >= pageStart)
+		ms_dwCandidateSelection = ms_dwCandidateSelection - pageStart;
+	else
+		ms_dwCandidateSelection = (DWORD)-1;
+
+	memset(ms_wszCandidate, 0, sizeof(ms_wszCandidate));
+
+	for (UINT j = 0; j < pageSize; ++j)
+	{
+		UINT srcIdx = pageStart + j;
+		const wchar_t* src = CandidateStringAt(cl, srcIdx);
+		wcsncpy_s(ms_wszCandidate[j], CIME::MAX_CANDIDATE_LENGTH, src, _TRUNCATE);
+	}
+
+	// don't display selection in candidate list in case of Korean and old Chinese IME.
+	if (GETPRIMLANG() == LANG_KOREAN || (GETLANG() == LANG_CHT && !GetImeId()))
+		ms_dwCandidateSelection = (DWORD)-1;
 }
 
 void CIME::ReadingProcess(HIMC hImc)
@@ -1178,9 +1379,9 @@ void CIME::ReadingProcess(HIMC hImc)
 
 				case IMEID_CHS_VER42: // 4.2.x.x // SCIME98 or MSPY2 (w/Office2k, Win2k, WinME, etc)
 					{
-						OSVERSIONINFOA osi;
-						osi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
-						GetVersionExA(&osi);
+						OSVERSIONINFOW osi;
+						osi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+						GetVersionExW(&osi);
 
 						int nTcharSize = (osi.dwPlatformId == VER_PLATFORM_WIN32_NT) ? sizeof(wchar_t) : sizeof(char);
 						p = *(LPBYTE *)((LPBYTE)_ImmLockIMCC(lpIC->hPrivate) + 1*4 + 1*4 + 6*4);
@@ -1205,9 +1406,9 @@ void CIME::ReadingProcess(HIMC hImc)
 			if(bUnicodeIme) {
 				ms_wstrReading.assign(temp, temp+tempLen);
 			} else {
-				int wstrLen = MultiByteToWideChar(ms_uInputCodePage, 0, (char*)temp, tempLen, NULL, 0); 
+				int wstrLen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, (char*)temp, tempLen, NULL, 0);
 				wchar_t* wstr = (wchar_t*)alloca(sizeof(wchar_t)*wstrLen);
-				MultiByteToWideChar(ms_uInputCodePage, 0, (char*)temp, tempLen, wstr, wstrLen); 
+				MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, (char*)temp, tempLen, wstr, wstrLen);
 				ms_wstrReading.assign(wstr, wstr+wstrLen);
 			}
 		}
@@ -1216,7 +1417,8 @@ void CIME::ReadingProcess(HIMC hImc)
 		_ImmUnlockIMC(hImc);
 
 		ms_bHorizontalReading = GetReadingWindowOrientation();
-    }
+	}
+
 	if (ms_wstrReading.size()) {
 		ms_bReadingInformation = true;
 		if(ms_pEvent)
@@ -1228,12 +1430,17 @@ void CIME::ReadingProcess(HIMC hImc)
 
 bool CIME::IsMax(const wchar_t* wInput, int len)
 {
-	if (ms_lastpos + len > IMESTR_MAXLEN)
+	if (ms_lastpos + len >= IMESTR_MAXLEN) // keep room for NUL
 		return true;
 
-	int textLen = WideCharToMultiByte(ms_uOutputCodePage, 0, m_wText, ms_lastpos, 0, 0, NULL, NULL);
-	int inputLen = WideCharToMultiByte(ms_uOutputCodePage, 0, wInput, len, 0, 0, NULL, NULL);
-	//return textLen + inputLen > m_max;
+	int textLen = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, m_wText, ms_lastpos, nullptr, 0, nullptr, nullptr);
+	int inputLen = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wInput, len, nullptr, 0, nullptr, nullptr);
+
+	if (textLen <= 0)
+		textLen = 0;
+
+	if (inputLen <= 0)
+		inputLen = 0;
 
 	if (textLen + inputLen > m_max)
 		return true;
@@ -1241,17 +1448,25 @@ bool CIME::IsMax(const wchar_t* wInput, int len)
 	{
 		std::wstring str = GetTextTagOutputString(m_wText, ms_lastpos);
 		std::wstring input = GetTextTagOutputString(wInput, len);
-		int textLen = WideCharToMultiByte(ms_uOutputCodePage, 0, str.c_str(), str.length(), 0, 0, NULL, NULL);
-		int inputLen = WideCharToMultiByte(ms_uOutputCodePage, 0, input.c_str(), input.length(), 0, 0, NULL, NULL);
+
+		int textLen = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, str.c_str(), str.length(), 0, 0, NULL, NULL);
+		if (textLen <= 0)
+			textLen = 0;
+
+		int inputLen = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, input.c_str(), input.length(), 0, 0, NULL, NULL);
+		if (inputLen <= 0)
+			inputLen = 0;
+
 		return textLen + inputLen > m_userMax;
 	}
+
 	return false;
 }
 
 DWORD CIME::GetImeId( UINT uIndex )
 {
 	static HKL hklPrev = 0;
-    char szTmp[1024];
+	wchar_t szTmp[1024];
 
 	if (uIndex >= COUNTOF(ms_adwId))
 		return 0;
@@ -1271,122 +1486,130 @@ DWORD CIME::GetImeId( UINT uIndex )
 
 	if (!((ms_hklCurrent == _CHT_HKL_NEW_PHONETIC) || (ms_hklCurrent == _CHT_HKL_NEW_CHANG_JIE) || (ms_hklCurrent == _CHT_HKL_NEW_QUICK) || (ms_hklCurrent == _CHT_HKL_HK_CANTONESE) || (ms_hklCurrent == _CHS_HKL))) {
 		ms_adwId[0] = ms_adwId[1] = 0;
-        return 0;
+		return 0;
 	}
 
-	if (!ImmGetIMEFileNameA(ms_hklCurrent, szTmp, (sizeof(szTmp) / sizeof(szTmp[0])) - 1)) {
+	// Buffer size parameter
+	if (!ImmGetIMEFileNameW(ms_hklCurrent, szTmp, _countof(szTmp))) {
 		ms_adwId[0] = ms_adwId[1] = 0;
-        return 0;
+		return 0;
 	}
 
-    if (!_GetReadingString)
+	if (!_GetReadingString)
 	{
-        if ((CompareStringA(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHT_IMEFILENAME1, -1) != CSTR_EQUAL) &&
-            (CompareStringA(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHT_IMEFILENAME2, -1) != CSTR_EQUAL) &&
-            (CompareStringA(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHT_IMEFILENAME3, -1) != CSTR_EQUAL) &&
-            (CompareStringA(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHS_IMEFILENAME1, -1) != CSTR_EQUAL) &&
-            (CompareStringA(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHS_IMEFILENAME2, -1) != CSTR_EQUAL))
+		if ((CompareStringW(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHT_IMEFILENAME1, -1) != CSTR_EQUAL) &&
+			(CompareStringW(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHT_IMEFILENAME2, -1) != CSTR_EQUAL) &&
+			(CompareStringW(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHT_IMEFILENAME3, -1) != CSTR_EQUAL) &&
+			(CompareStringW(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHS_IMEFILENAME1, -1) != CSTR_EQUAL) &&
+			(CompareStringW(LCID_INVARIANT, NORM_IGNORECASE, szTmp, -1, CHS_IMEFILENAME2, -1) != CSTR_EQUAL))
 		{
 			ms_adwId[0] = ms_adwId[1] = 0;
-	        return 0;
-        }
-    }
+			return 0;
+		}
+	}
 
-    DWORD   dwVerHandle;
-    DWORD   dwVerSize = GetFileVersionInfoSize(szTmp, &dwVerHandle);
-	LANGID	langId = LOWORD(ms_hklCurrent);
+	DWORD dwVerHandle;
+	DWORD dwVerSize = GetFileVersionInfoSizeW(szTmp, &dwVerHandle);
+	LANGID langId = LOWORD(ms_hklCurrent);
 
-    if (dwVerSize)
+	if (dwVerSize)
 	{
-        LPVOID lpVerBuffer = alloca(dwVerSize);
+		LPVOID lpVerBuffer = alloca(dwVerSize);
 
-        if (GetFileVersionInfo(szTmp, dwVerHandle, dwVerSize, lpVerBuffer))
+		if (GetFileVersionInfoW(szTmp, dwVerHandle, dwVerSize, lpVerBuffer))
 		{
-			LPVOID  lpVerData;
-			UINT    cbVerData;
+			LPVOID lpVerData;
+			UINT cbVerData;
 
-            if(VerQueryValue(lpVerBuffer, "\\", &lpVerData, &cbVerData))
+			if (VerQueryValueW(lpVerBuffer, L"\\", &lpVerData, &cbVerData))
 			{
-                DWORD dwVer = ((VS_FIXEDFILEINFO*) lpVerData)->dwFileVersionMS;
-                dwVer = (dwVer & 0x00ff0000) << 8 | (dwVer & 0x000000ff) << 16;
+				DWORD dwVer = ((VS_FIXEDFILEINFO*) lpVerData)->dwFileVersionMS;
+				dwVer = (dwVer & 0x00ff0000) << 8 | (dwVer & 0x000000ff) << 16;
 
-                if (_GetReadingString
-                    ||
-                    (langId == LANG_CHT &&
-                        (dwVer == MAKEIMEVERSION(4, 2) || 
-                        dwVer == MAKEIMEVERSION(4, 3) || 
-                        dwVer == MAKEIMEVERSION(4, 4) || 
-                        dwVer == MAKEIMEVERSION(5, 0) ||
-                        dwVer == MAKEIMEVERSION(5, 1) ||
-                        dwVer == MAKEIMEVERSION(5, 2) ||
-                        dwVer == MAKEIMEVERSION(6, 0)))
-                    ||
-                    (langId == LANG_CHS &&
-                        (dwVer == MAKEIMEVERSION(4, 1) ||
-                        dwVer == MAKEIMEVERSION(4, 2) ||
-                        dwVer == MAKEIMEVERSION(5, 3))))
+				if (_GetReadingString
+					||
+					(langId == LANG_CHT &&
+						(dwVer == MAKEIMEVERSION(4, 2) || 
+						dwVer == MAKEIMEVERSION(4, 3) || 
+						dwVer == MAKEIMEVERSION(4, 4) || 
+						dwVer == MAKEIMEVERSION(5, 0) ||
+						dwVer == MAKEIMEVERSION(5, 1) ||
+						dwVer == MAKEIMEVERSION(5, 2) ||
+						dwVer == MAKEIMEVERSION(6, 0)))
+					||
+					(langId == LANG_CHS &&
+						(dwVer == MAKEIMEVERSION(4, 1) ||
+						dwVer == MAKEIMEVERSION(4, 2) ||
+						dwVer == MAKEIMEVERSION(5, 3))))
 				{
-                    ms_adwId[0] = dwVer | langId;
-                    ms_adwId[1] = ((VS_FIXEDFILEINFO*)lpVerData)->dwFileVersionLS;
+					ms_adwId[0] = dwVer | langId;
+					ms_adwId[1] = ((VS_FIXEDFILEINFO*)lpVerData)->dwFileVersionLS;
 					return ms_adwId[uIndex];
-                }
-            }
-        }
-    }
+				}
+			}
+		}
+	}
 	ms_adwId[0] = ms_adwId[1] = 0;
 	return ms_adwId[0];
 }
 
 bool CIME::GetReadingWindowOrientation()
 {
-    bool bHorizontalReading = (ms_hklCurrent == _CHS_HKL) || (ms_hklCurrent == _CHT_HKL_NEW_CHANG_JIE) || (ms_adwId[0] == 0);
-    if(!bHorizontalReading && (GETLANG() == LANG_CHT))
-    {
-        char szRegPath[MAX_PATH];
-        HKEY hKey;
-        DWORD dwVer = ms_adwId[0] & 0xFFFF0000;
-        strcpy(szRegPath, "software\\microsoft\\windows\\currentversion\\");
-        strcat(szRegPath, (dwVer >= MAKEIMEVERSION(5, 1)) ? "MSTCIPH" : "TINTLGNT");
-        LONG lRc = RegOpenKeyExA(HKEY_CURRENT_USER, szRegPath, 0, KEY_READ, &hKey);
-        if (lRc == ERROR_SUCCESS)
-        {
-            DWORD dwSize = sizeof(DWORD), dwMapping, dwType;
-            lRc = RegQueryValueExA(hKey, "Keyboard Mapping", NULL, &dwType, (PBYTE)&dwMapping, &dwSize);
-            if (lRc == ERROR_SUCCESS)
-            {
-                if ((dwVer <= MAKEIMEVERSION(5, 0) && 
-                       ((BYTE)dwMapping == 0x22 || (BYTE)dwMapping == 0x23))
-                     ||
-                     ((dwVer == MAKEIMEVERSION(5, 1) || dwVer == MAKEIMEVERSION(5, 2)) &&
-                       (BYTE)dwMapping >= 0x22 && (BYTE)dwMapping <= 0x24)
-                  )
-                {
-                    bHorizontalReading = true;
-                }
-            }
-            RegCloseKey(hKey);
-        }
-    }
+	bool bHorizontalReading = (ms_hklCurrent == _CHS_HKL) || (ms_hklCurrent == _CHT_HKL_NEW_CHANG_JIE) || (ms_adwId[0] == 0);
+	if(!bHorizontalReading && (GETLANG() == LANG_CHT))
+	{
+		wchar_t wszRegPath[MAX_PATH];
+		HKEY hKey;
+		DWORD dwVer = ms_adwId[0] & 0xFFFF0000;
+		wcscpy_s(wszRegPath, L"software\\microsoft\\windows\\currentversion\\");
+		wcscpy_s(wszRegPath, (dwVer >= MAKEIMEVERSION(5, 1)) ? L"MSTCIPH" : L"TINTLGNT");
+		LONG lRc = RegOpenKeyExW(HKEY_CURRENT_USER, wszRegPath, 0, KEY_READ, &hKey);
+		if (lRc == ERROR_SUCCESS)
+		{
+			DWORD dwSize = sizeof(DWORD), dwMapping, dwType;
+			lRc = RegQueryValueExW(hKey, L"Keyboard Mapping", NULL, &dwType, (PBYTE)&dwMapping, &dwSize);
+			if (lRc == ERROR_SUCCESS)
+			{
+				if ((dwVer <= MAKEIMEVERSION(5, 0) && 
+					   ((BYTE)dwMapping == 0x22 || (BYTE)dwMapping == 0x23))
+					 ||
+					 ((dwVer == MAKEIMEVERSION(5, 1) || dwVer == MAKEIMEVERSION(5, 2)) &&
+					   (BYTE)dwMapping >= 0x22 && (BYTE)dwMapping <= 0x24)
+				  )
+				{
+					bHorizontalReading = true;
+				}
+			}
+			RegCloseKey(hKey);
+		}
+	}
 
 	return bHorizontalReading;
 }
 
 void CIME::SetupImeApi()
 {
-    char szImeFile[MAX_PATH + 1];
+	wchar_t szImeFile[MAX_PATH + 1];
 
 	_GetReadingString = NULL;
-    _ShowReadingWindow = NULL;
+	_ShowReadingWindow = NULL;
 	ms_bUseIMMCandidate = false;
 
-	if(ImmGetIMEFileNameA(ms_hklCurrent, szImeFile, COUNTOF(szImeFile) - 1) == 0)
+	if(ImmGetIMEFileNameW(ms_hklCurrent, szImeFile, COUNTOF(szImeFile) - 1) == 0)
 		return;
-	if(stricmp(szImeFile, CHS_IMEFILENAME_QQPINYIN) == 0 || stricmp(szImeFile, CHS_IMEFILENAME_SOGOUPY) == 0 || stricmp(szImeFile, CHS_IMEFILENAME_GOOGLEPINYIN2) == 0)
+
+	std::string imeUtf8 = WideToUtf8(szImeFile);
+
+	if (_stricmp(imeUtf8.c_str(), CHS_IMEFILENAME_QQPINYIN) == 0 || _stricmp(imeUtf8.c_str(), CHS_IMEFILENAME_SOGOUPY) == 0 || _stricmp(imeUtf8.c_str(), CHS_IMEFILENAME_GOOGLEPINYIN2) == 0)
+	{
 		ms_bUseIMMCandidate = true;
+	}
+
 	if (ms_bUILessMode)
 		return;
+
 	SAFE_FREE_LIBRARY(ms_hCurrentImeDll);
-	ms_hCurrentImeDll = LoadLibraryA(szImeFile);
+	ms_hCurrentImeDll = LoadLibraryW(szImeFile);
 
 	if (ms_hCurrentImeDll) {
 		_GetReadingString = (UINT (WINAPI*)(HIMC, UINT, LPWSTR, PINT, BOOL*, PUINT)) (GetProcAddress(ms_hCurrentImeDll, "GetReadingString"));
@@ -1438,24 +1661,16 @@ static unsigned long _strtoul( LPCSTR psz, LPTSTR*, int )
 
 void CIME::CheckInputLocale()
 {
-	static UINT s_uPrevCodePage = 0xFFFF;
-	static HKL	s_hklPrev = NULL;
+	static HKL s_hklPrev = NULL;
 
-	ms_hklCurrent = GetKeyboardLayout( 0 );
-	if ( s_hklPrev == ms_hklCurrent )
+	ms_hklCurrent = GetKeyboardLayout(0);
+	if (s_hklPrev == ms_hklCurrent)
 		return;
 	s_hklPrev = ms_hklCurrent;
 
-	char szCodePage[8];
-	int iRc = GetLocaleInfoA( MAKELCID( GETLANG(), SORT_DEFAULT ), LOCALE_IDEFAULTANSICODEPAGE, szCodePage, COUNTOF( szCodePage ) ); iRc;
-	ms_uInputCodePage = _strtoul( szCodePage, NULL, 0 );
-	if ( s_uPrevCodePage == ms_uInputCodePage )
-		return;
-	s_uPrevCodePage = ms_uInputCodePage;
+	GetKeyboardLayoutNameW(ms_szKeyboardLayout);
 
-	GetKeyboardLayoutName(ms_szKeyboardLayout);
-
-    switch (GETPRIMLANG()) 
+	switch (GETPRIMLANG())
 	{
 		case LANG_KOREAN:
 			ms_bVerticalCandidate = false;
@@ -1469,52 +1684,42 @@ void CIME::CheckInputLocale()
 
 		case LANG_CHINESE:
 			ms_bVerticalCandidate = true;
-
-			switch(GETSUBLANG()) 
+			switch (GETSUBLANG())
 			{
-				case SUBLANG_CHINESE_SIMPLIFIED:
-				case SUBLANG_CHINESE_SINGAPORE:
-					//ms_bVerticalCandidate = (GetImeId() == 0);
-					ms_bVerticalCandidate = false;
-					ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_CHS];
-					break;
+			case SUBLANG_CHINESE_SIMPLIFIED:
+			case SUBLANG_CHINESE_SINGAPORE:
+				ms_bVerticalCandidate = false;
+				ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_CHS];
+				break;
 
-				case SUBLANG_CHINESE_TRADITIONAL:
-				case SUBLANG_CHINESE_HONGKONG:
-				case SUBLANG_CHINESE_MACAU:
-					ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_CHT];
-					break;
+			case SUBLANG_CHINESE_TRADITIONAL:
+			case SUBLANG_CHINESE_HONGKONG:
+			case SUBLANG_CHINESE_MACAU:
+				ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_CHT];
+				break;
 
-				default:	// unsupported sub-language
-					ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_NON_IME];
-					break;
+			default:
+				ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_NON_IME];
+				break;
 			}
 			break;
 
 		default:
 			ms_wszCurrentIndicator = s_aszIndicator[INDICATOR_NON_IME];
 			break;
-    }
-
-    if (ms_wszCurrentIndicator == s_aszIndicator[INDICATOR_NON_IME])
-    {
-        char szLang[10];
-        GetLocaleInfoA(MAKELCID(GETLANG(), SORT_DEFAULT), LOCALE_SABBREVLANGNAME, szLang, sizeof(szLang));
-        ms_wszCurrentIndicator[0] = szLang[0];
-        ms_wszCurrentIndicator[1] = towlower(szLang[1]);
-    }
-
-	// 아랍어에서 영어로 변경시 코드 페이지를 바꾸지 않는다
-	// 내용도 지우지 않는다.
-	if(ms_uOutputCodePage != 1256) {
-		ms_uOutputCodePage = ms_uInputCodePage;
-		Clear();
 	}
 
-	//for ( int i = 0; i < 256; i++ )
-	//{
-	//	LeadByteTable[i] = (BYTE)IsDBCSLeadByteEx( g_uCodePage, (BYTE)i );
-	//}
+	if (ms_wszCurrentIndicator == s_aszIndicator[INDICATOR_NON_IME])
+	{
+		wchar_t szLang[10]{};
+		GetLocaleInfoW(MAKELCID(GETLANG(), SORT_DEFAULT), LOCALE_SABBREVLANGNAME, szLang, _countof(szLang));
+
+		ms_wszCurrentIndicator[0] = szLang[0];
+		ms_wszCurrentIndicator[1] = towlower(szLang[1]);
+	}
+
+	if (ms_compLen > 0)
+		FinalizeString(false);
 }
 
 void CIME::CheckToggleState()
@@ -1883,10 +2088,10 @@ void CTsfUiLessMode::MakeReadingInformationString(ITfReadingInformationUIElement
 					if ( *pszSource )
 					{
 						LPWSTR pszNextSrc = CharNextW(pszSource);
-						SIZE_T size = (LPSTR)pszNextSrc - (LPSTR)pszSource;
-						CopyMemory( pszDest, pszSource, size );
+						SIZE_T cch = (SIZE_T)(pszNextSrc - pszSource); // WCHAR count (1 or 2)
+						CopyMemory(pszDest, pszSource, cch * sizeof(WCHAR));
 						pszSource = pszNextSrc;
-						pszDest += size;
+						pszDest += cch;
 					}
 					*pszDest = 0;
 				}
@@ -1942,7 +2147,7 @@ void CTsfUiLessMode::MakeCandidateStrings(ITfCandidateListUIElement* pcandidate)
 		{
 			if(bstr)
 			{
-				wcscpy( CIME::ms_wszCandidate[j], bstr );
+				wcsncpy_s(CIME::ms_wszCandidate[j], CIME::MAX_CANDIDATE_LENGTH, bstr, _TRUNCATE);
 				SysFreeString(bstr);
 			}
 		}
@@ -2132,7 +2337,7 @@ LRESULT CIME::WMStartComposition(HWND /*hWnd*/, UINT /*uiMsg*/, WPARAM /*wParam*
 
 LRESULT CIME::WMComposition(HWND hWnd, UINT /*uiMsg*/, WPARAM /*wParam*/, LPARAM lParam)
 {
-	LRESULT		result = 0;
+	LRESULT result = 0;
 
 	if(ms_bCaptureInput == false)
 		return 0;
@@ -2142,23 +2347,21 @@ LRESULT CIME::WMComposition(HWND hWnd, UINT /*uiMsg*/, WPARAM /*wParam*/, LPARAM
 	if(hImc == NULL)
 		return 0;
 
-	if(lParam&GCS_RESULTSTR) 
+	if (lParam&GCS_RESULTSTR)
 		ResultProcess(hImc);
-	if(lParam&GCS_COMPATTR) 
+
+	if (lParam&GCS_COMPATTR)
 		AttributeProcess(hImc);
-	if(lParam&GCS_COMPSTR)
+
+	if (lParam&GCS_COMPSTR)
 	{
-		if (ms_uOutputCodePage == 950) // 대만 주음 입력 처리
-		{
-			if (lParam&GCS_COMPATTR) 
-				CompositionProcessBuilding(hImc);
-			else
-				CompositionProcess(hImc);
-		}
-		else
-		{
-			CompositionProcess(hImc);
-		}
+		CompositionProcess(hImc);
+	}
+
+	if (lParam & GCS_CURSORPOS)
+	{
+		LONG pos = ImmGetCompositionStringW(hImc, GCS_CURSORPOS, nullptr, 0);
+		ms_compCaret = (pos < 0) ? 0 : (int)pos;
 	}
 
 	ImmReleaseContext(hWnd, hImc);
@@ -2263,41 +2466,57 @@ LRESULT CIME::WMNotify(HWND hWnd, UINT uiMsg, WPARAM wParam, LPARAM lParam)
 
 LRESULT CIME::WMChar(HWND /*hWnd*/, UINT /*uiMsg*/, WPARAM wParam, LPARAM lParam)
 {
-	unsigned char c = unsigned char(wParam & 0xff);
+	wchar_t wc = (wchar_t)wParam;
 
-	switch (c) 
+	switch ((unsigned int)wc)
 	{
-	case 8:
-		if(ms_bCaptureInput == false)
-			return 0;
-		if (ms_curpos > 0)
-		{
-			DecCurPos();
-			DelCurPos();
-		}
-		if(ms_pEvent)
-			ms_pEvent->OnUpdate();
-		return 0;
-		break;
+		case 8:
+			if (ms_bCaptureInput == false)
+				return 0;
 
-	default:
-		if(ms_pEvent) {
-			if (ms_pEvent->OnWM_CHAR(wParam, lParam))
-				break;
-		}
-		if(ms_bCaptureInput == false)
-			return 0;
-		wchar_t w[10];
-		MultiByteToWideChar(ms_uInputCodePage, 0, (char*)&c, 1, w, 1);
+			// If something is selected, backspace deletes the whole selection
+			if (ms_selbegin != ms_selend)
+			{
+				PushUndoState();
+				DeleteSelection();
 
-		OnChar(w[0]);
-		if (w[0] == L'|')
-			OnChar(w[0]);
-		if(ms_pEvent)
-			ms_pEvent->OnUpdate();
-		break;
+				if (ms_pEvent)
+					ms_pEvent->OnUpdate();
+
+				return 0;
+			}
+
+			// Otherwise delete one char to the left
+			if (ms_curpos > 0)
+			{
+				PushUndoState();
+				DecCurPos();
+				DelCurPos();
+			}
+
+			if (ms_pEvent)
+				ms_pEvent->OnUpdate();
+			return 0;
+
+		default:
+			if(ms_pEvent)
+			{
+				if (ms_pEvent->OnWM_CHAR(wParam, lParam))
+					break;
+			}
+
+			if(ms_bCaptureInput == false)
+				return 0;
+
+			OnChar(wc);
+			if (wc == L'|')
+				OnChar(wc);
+
+			if(ms_pEvent)
+				ms_pEvent->OnUpdate();
+
+			break;
 	}
 
 	return 0;
 }
-

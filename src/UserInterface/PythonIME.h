@@ -19,6 +19,12 @@ public:
 	void SetCursorPosition(int iPosition);
 	void Delete();
 
+	void SelectAll();
+	void DeleteSelection();
+	void CopySelectionToClipboard();
+	void CutSelection();
+	void PasteTextFromClipBoard();
+
 	void Create(HWND hWnd);
 
 protected:
@@ -28,9 +34,9 @@ protected:
 
 	virtual bool OnWM_CHAR( WPARAM wParam, LPARAM lParam );
 	virtual void OnUpdate();
-	virtual void OnChangeCodePage();
 	virtual void OnOpenCandidateList();
 	virtual void OnCloseCandidateList();
 	virtual void OnOpenReadingWnd();
 	virtual void OnCloseReadingWnd();
+
 };

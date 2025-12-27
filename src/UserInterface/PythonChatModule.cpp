@@ -97,6 +97,33 @@ PyObject * chatSetPosition(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildNone();
 }
 
+PyObject* chatSetAlign(PyObject* poSelf, PyObject* poArgs)
+{
+	int iID;
+	if (!PyTuple_GetInteger(poArgs, 0, &iID))
+		return Py_BuildException();
+
+	int iAlign;
+	if (!PyTuple_GetInteger(poArgs, 1, &iAlign))
+		return Py_BuildException();
+
+	CPythonChat::Instance().SetAlign(iID, iAlign);
+	return Py_BuildNone();
+}
+
+PyObject* chatSetWidth(PyObject* poSelf, PyObject* poArgs)
+{
+	int iID;
+	int iWidth;
+	if (!PyTuple_GetInteger(poArgs, 0, &iID))
+		return Py_BadArgument();
+	if (!PyTuple_GetInteger(poArgs, 1, &iWidth))
+		return Py_BadArgument();
+
+	CPythonChat::Instance().SetWidth((DWORD)iID, iWidth);
+	return Py_BuildNone();
+}
+
 PyObject * chatSetHeight(PyObject* poSelf, PyObject* poArgs)
 {
 	int iID;
@@ -462,6 +489,8 @@ void initChat()
 
 		{ "SetBoardState",			chatSetBoardState,			METH_VARARGS },
 		{ "SetPosition",			chatSetPosition,			METH_VARARGS },
+		{ "SetAlign",				chatSetAlign,				METH_VARARGS },
+		{ "SetWidth",				chatSetWidth,				METH_VARARGS },
 		{ "SetHeight",				chatSetHeight,				METH_VARARGS },
 		{ "SetStep",				chatSetStep,				METH_VARARGS },
 		{ "ToggleChatMode",			chatToggleChatMode,			METH_VARARGS },

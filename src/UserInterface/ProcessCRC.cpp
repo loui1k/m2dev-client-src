@@ -1,57 +1,60 @@
 #include "StdAfx.h"
 
 #include <tlhelp32.h>
+#include <utf8.h>
 
 static BYTE abCRCMagicCube[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 static BYTE abCRCXorTable[8] = { 102, 30, 188, 44, 39, 201, 43, 5 };
 static BYTE bMagicCubeIdx = 0;
 
-const char * stristr(const char * big, const char * little)
+const wchar_t* wcsistr(const wchar_t* haystack, const wchar_t* needle)
 {
-	const char * t = big;
-	size_t len = strlen(little) - 1;
+	if (!haystack || !needle || !*needle)
+		return haystack;
 
-	for (t = big; *t; ++t)
-		if (!_strnicmp(t, little, len))
-			return t;
+	size_t needleLen = wcslen(needle);
 
-	return NULL;
+	for (const wchar_t* p = haystack; *p; ++p)
+	{
+		if (_wcsnicmp(p, needle, needleLen) == 0)
+			return p;
+	}
+	return nullptr;
 }
 
-bool GetProcessInformation(std::string & exeFileName, LPCVOID * ppvAddress)
+bool GetProcessInformation(std::string& exeFileName, LPCVOID* ppvAddress)
 {
-	HANDLE hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
-	if (hModuleSnap != INVALID_HANDLE_VALUE) 
-	{		
-		std::string filename;
+	HANDLE hModuleSnap = CreateToolhelp32Snapshot(
+		TH32CS_SNAPMODULE,
+		GetCurrentProcessId());
 
-		GetExcutedFileName(filename);
+	if (hModuleSnap == INVALID_HANDLE_VALUE)
+		return false;
 
-		MODULEENTRY32 me32;
-		memset(&me32, 0, sizeof(me32));
-		me32.dwSize = sizeof(MODULEENTRY32);
+	std::string exeUtf8;
+	GetExcutedFileName(exeUtf8);
 
-		BOOL bRet = Module32First(hModuleSnap, &me32);
+	std::wstring exeWide = Utf8ToWide(exeUtf8);
 
-		while (bRet) 
+	MODULEENTRY32W me32{};
+	me32.dwSize = sizeof(me32);
+
+	BOOL bRet = Module32FirstW(hModuleSnap, &me32);
+	while (bRet)
+	{
+		if (wcsistr(me32.szExePath, exeWide.c_str()))
 		{
-			if (stristr(me32.szExePath, filename.c_str()))
-			{
-				exeFileName = me32.szExePath;
-				*ppvAddress = me32.modBaseAddr;
-				CloseHandle(hModuleSnap);
-				return true;
-			}
-
-			ZeroMemory(&me32, sizeof(MODULEENTRY32));
-			me32.dwSize = sizeof(MODULEENTRY32);
-
-			bRet = Module32Next(hModuleSnap, &me32);
+			exeFileName = WideToUtf8(me32.szExePath);
+			*ppvAddress = me32.modBaseAddr;
+			CloseHandle(hModuleSnap);
+			return true;
 		}
 
-		CloseHandle(hModuleSnap);
+		me32.dwSize = sizeof(me32);
+		bRet = Module32NextW(hModuleSnap, &me32);
 	}
 
+	CloseHandle(hModuleSnap);
 	return false;
 }
 
@@ -95,13 +98,6 @@ bool __GetExeCRC(DWORD & r_dwProcCRC, DWORD & r_dwFileCRC)
 
 void BuildProcessCRC()
 {
-	if (LocaleService_IsHONGKONG() || LocaleService_IsTAIWAN())
-	{
-		memset(abCRCMagicCube, 0, sizeof(abCRCMagicCube));
-		bMagicCubeIdx = 0;
-		return;
-	}
-	
 	DWORD dwProcCRC, dwFileCRC;
 
 	if (__GetExeCRC(dwProcCRC, dwFileCRC))

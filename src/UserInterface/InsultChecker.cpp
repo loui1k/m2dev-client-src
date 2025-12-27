@@ -28,15 +28,14 @@ void CInsultChecker::AppendInsult(const std::string& c_rstInsult)
 
 bool CInsultChecker::__GetInsultLength(const char* c_szWord, UINT* puInsultLen)
 {
-	std::list<std::string>::iterator i;
-	for (i=m_kList_stInsult.begin(); i!=m_kList_stInsult.end(); ++i)
+	for (auto i = m_kList_stInsult.begin(); i != m_kList_stInsult.end(); ++i)
 	{
-		std::string& rstInsult=*i;
+		auto rstInsult = *i;
+		int ret = StringCompareCI(c_szWord, rstInsult.c_str(), rstInsult.length());
 
-		int ret=LocaleService_StringCompareCI(c_szWord, rstInsult.c_str(), rstInsult.length());		
-		if (0==ret)
+		if (0 == ret)
 		{
-			*puInsultLen=rstInsult.length();
+			*puInsultLen = rstInsult.length();
 			return true;
 		}
 	}
@@ -64,10 +63,7 @@ void CInsultChecker::FilterInsult(char* szLine, UINT uLineLen)
 		}
 		else
 		{
-			if ( LocaleService_IsLeadByte( bChr ) )
-				uPos += 2;
-			else
-				uPos++;
+			uPos++;
 		}
 	}
 }

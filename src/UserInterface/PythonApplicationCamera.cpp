@@ -4,6 +4,8 @@
 #include "EterBase/timer.h"
 #include "EterLib/Camera.h"
 
+#include <utf8.h>
+
 float BlendValueByLinear(float fElapsedTime, float fDuration, float fBeginValue, float fEndValue)
 {
 	if (fElapsedTime >= fDuration)
@@ -359,8 +361,14 @@ void CPythonApplication::SaveCameraSetting(const char * c_szFileName)
 	SCameraSetting CameraSetting;
 	GetCameraSetting(&CameraSetting);
 
-	FILE * File = fopen(c_szFileName, "w");
-	SetFileAttributes(c_szFileName, FILE_ATTRIBUTE_NORMAL);
+	// UTF-8 → UTF-16
+	std::wstring wFileName = Utf8ToWide(c_szFileName);
+
+	FILE* File = _wfopen(wFileName.c_str(), L"w");
+	if (!File)
+		return;
+
+	SetFileAttributesW(wFileName.c_str(), FILE_ATTRIBUTE_NORMAL);
 
 	PrintfTabs(File, 0, "CenterPos %f %f %f\n", CameraSetting.v3CenterPosition.x, CameraSetting.v3CenterPosition.y, CameraSetting.v3CenterPosition.z);
 	PrintfTabs(File, 0, "CameraSetting %f %f %f\n", CameraSetting.fZoom, CameraSetting.fPitch, CameraSetting.fRotation);

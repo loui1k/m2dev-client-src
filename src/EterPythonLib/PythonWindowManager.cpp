@@ -1133,15 +1133,6 @@ namespace UI
 		// NOTE : 전체로 돌리지 않고 Activate되어있는 EditLine에만 보내는 이벤트
 	}
 
-	void CWindowManager::RunChangeCodePage()
-	{
-		if (m_pActiveWindow)
-		if (m_pActiveWindow->IsRendering())
-		{
-			if (m_pActiveWindow->OnIMEChangeCodePage())
-				return;
-		}
-	}
 	void CWindowManager::RunOpenCandidate()
 	{
 		if (m_pLockWindow)

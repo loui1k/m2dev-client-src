@@ -11,6 +11,8 @@
 
 #include "ProcessScanner.h"
 
+#include <utf8.h>
+
 extern void GrannyCreateSharedDeformBuffer();
 extern void GrannyDestroySharedDeformBuffer();
 
@@ -742,82 +744,65 @@ int CPythonApplication::CheckDeviceState()
 	return DEVICE_STATE_OK;
 }
 
-bool CPythonApplication::CreateDevice(int width, int height, int Windowed, int bit /* = 32*/, int frequency /* = 0*/)
+bool CPythonApplication::CreateDevice(int width, int height, int Windowed, int bit, int frequency)
 {
 	int iRet;
 
 	m_grpDevice.InitBackBufferCount(2);
-	m_grpDevice.RegisterWarningString(CGraphicDevice::CREATE_BAD_DRIVER, ApplicationStringTable_GetStringz(IDS_WARN_BAD_DRIVER, "WARN_BAD_DRIVER"));
-	m_grpDevice.RegisterWarningString(CGraphicDevice::CREATE_NO_TNL, ApplicationStringTable_GetStringz(IDS_WARN_NO_TNL, "WARN_NO_TNL"));
-
-	iRet = m_grpDevice.Create(GetWindowHandle(), width, height, Windowed ? true : false, bit,frequency);
+	iRet = m_grpDevice.Create(GetWindowHandle(), width, height, Windowed ? true : false, bit, frequency);
 
 	switch (iRet)
 	{
-	case CGraphicDevice::CREATE_OK:
-		return true;
-
-	case CGraphicDevice::CREATE_REFRESHRATE:
-		return true;
-
-	case CGraphicDevice::CREATE_ENUM:
-	case CGraphicDevice::CREATE_DETECT:
-		SET_EXCEPTION(CREATE_NO_APPROPRIATE_DEVICE);
-		TraceError("CreateDevice: Enum & Detect failed");
-		return false;
-
-	case CGraphicDevice::CREATE_NO_DIRECTX:
-		//PyErr_SetString(PyExc_RuntimeError, "DirectX 8.1 or greater required to run game");
-		SET_EXCEPTION(CREATE_NO_DIRECTX);
-		TraceError("CreateDevice: DirectX 8.1 or greater required to run game");
-		return false;
-
-	case CGraphicDevice::CREATE_DEVICE:
-		//PyErr_SetString(PyExc_RuntimeError, "GraphicDevice create failed");
-		SET_EXCEPTION(CREATE_DEVICE);
-		TraceError("CreateDevice: GraphicDevice create failed");
-		return false;
-
-	case CGraphicDevice::CREATE_FORMAT:
-		SET_EXCEPTION(CREATE_FORMAT);
-		TraceError("CreateDevice: Change the screen format");
-		return false;
-
-		/*case CGraphicDevice::CREATE_GET_ADAPTER_DISPLAY_MODE:
-		//PyErr_SetString(PyExc_RuntimeError, "GetAdapterDisplayMode failed");
-		SET_EXCEPTION(CREATE_GET_ADAPTER_DISPLAY_MODE);
-		TraceError("CreateDevice: GetAdapterDisplayMode failed");
-		return false;*/
-
-	case CGraphicDevice::CREATE_GET_DEVICE_CAPS:
-		PyErr_SetString(PyExc_RuntimeError, "GetDevCaps failed");
-		TraceError("CreateDevice: GetDevCaps failed");
-		return false;
-
-	case CGraphicDevice::CREATE_GET_DEVICE_CAPS2:
-		PyErr_SetString(PyExc_RuntimeError, "GetDevCaps2 failed");
-		TraceError("CreateDevice: GetDevCaps2 failed");
-		return false;
-
-	default:
-		if (iRet & CGraphicDevice::CREATE_OK)
-		{
-			//if (iRet & CGraphicDevice::CREATE_BAD_DRIVER)
-			//{
-			//	LogBox(ApplicationStringTable_GetStringz(IDS_WARN_BAD_DRIVER), NULL, GetWindowHandle());
-			//}
-			if (iRet & CGraphicDevice::CREATE_NO_TNL)
-			{
-				CGrannyLODController::SetMinLODMode(true);
-				//LogBox(ApplicationStringTable_GetStringz(IDS_WARN_NO_TNL), NULL, GetWindowHandle());
-			}
+		case CGraphicDevice::CREATE_OK:
 			return true;
-		}
 
-		//PyErr_SetString(PyExc_RuntimeError, "Unknown Error!");
-		SET_EXCEPTION(UNKNOWN_ERROR);
-		TraceError("CreateDevice: Unknown Error!");
-		return false;
+		case CGraphicDevice::CREATE_REFRESHRATE:
+			return true;
+
+		case CGraphicDevice::CREATE_ENUM:
+		case CGraphicDevice::CREATE_DETECT:
+			SET_EXCEPTION(CREATE_NO_APPROPRIATE_DEVICE);
+			TraceError("CreateDevice: Enum & Detect failed");
+			return false;
+
+		case CGraphicDevice::CREATE_NO_DIRECTX:
+			SET_EXCEPTION(CREATE_NO_DIRECTX);
+			TraceError("CreateDevice: DirectX 8.1 or greater required to run game");
+			return false;
+
+		case CGraphicDevice::CREATE_DEVICE:
+			SET_EXCEPTION(CREATE_DEVICE);
+			TraceError("CreateDevice: GraphicDevice create failed");
+			return false;
+
+		case CGraphicDevice::CREATE_FORMAT:
+			SET_EXCEPTION(CREATE_FORMAT);
+			TraceError("CreateDevice: Change the screen format");
+			return false;
+
+		case CGraphicDevice::CREATE_GET_DEVICE_CAPS:
+			PyErr_SetString(PyExc_RuntimeError, "GetDevCaps failed");
+			TraceError("CreateDevice: GetDevCaps failed");
+			return false;
+
+		case CGraphicDevice::CREATE_GET_DEVICE_CAPS2:
+			PyErr_SetString(PyExc_RuntimeError, "GetDevCaps2 failed");
+			TraceError("CreateDevice: GetDevCaps2 failed");
+			return false;
+
+		default:
+			if (iRet & CGraphicDevice::CREATE_OK)
+			{
+				if (iRet & CGraphicDevice::CREATE_NO_TNL)
+				{
+					CGrannyLODController::SetMinLODMode(true);
+				}
+				return true;
+			}
+
+			SET_EXCEPTION(UNKNOWN_ERROR);
+			TraceError("CreateDevice: Unknown Error!");
+			return false;
 	}
 }
 
@@ -840,38 +825,37 @@ void CPythonApplication::Loop()
 	}
 }
 
-// SUPPORT_NEW_KOREA_SERVER
 bool LoadLocaleData(const char* localePath)
 {
-	NANOBEGIN
-		CPythonNonPlayer&	rkNPCMgr	= CPythonNonPlayer::Instance();
+	CPythonNonPlayer&	rkNPCMgr	= CPythonNonPlayer::Instance();
 	CItemManager&		rkItemMgr	= CItemManager::Instance();	
 	CPythonSkill&		rkSkillMgr	= CPythonSkill::Instance();
 	CPythonNetworkStream& rkNetStream = CPythonNetworkStream::Instance();
 
 	char szItemList[256];
 	char szItemProto[256];
-	char szItemDesc[256];	
+	char szItemDesc[256];
 	char szMobProto[256];
 	char szSkillDescFileName[256];
 	char szSkillTableFileName[256];
 	char szInsultList[256];
-	snprintf(szItemList,	sizeof(szItemList) ,	"%s/item_list.txt",	localePath);		
-	snprintf(szItemProto,	sizeof(szItemProto),	"%s/item_proto",	localePath);
-	snprintf(szItemDesc,	sizeof(szItemDesc),	"%s/itemdesc.txt",	localePath);	
-	snprintf(szMobProto,	sizeof(szMobProto),	"%s/mob_proto",		localePath);	
-	snprintf(szSkillDescFileName, sizeof(szSkillDescFileName),	"%s/SkillDesc.txt", localePath);
-	snprintf(szSkillTableFileName, sizeof(szSkillTableFileName),	"%s/SkillTable.txt", localePath);	
-	snprintf(szInsultList,	sizeof(szInsultList),	"%s/insult.txt", localePath);
+
+	snprintf (szItemList,	sizeof (szItemList),	"%s/item_list.txt", GetLocalePathCommon());
+	snprintf (szItemProto,	sizeof (szItemProto),	"%s/item_proto",	localePath);
+	snprintf (szItemDesc,	sizeof (szItemDesc),	"%s/itemdesc.txt",	localePath);
+	snprintf (szMobProto,	sizeof (szMobProto),	"%s/mob_proto",		localePath);
+	snprintf (szSkillDescFileName, sizeof (szSkillDescFileName),	"%s/SkillDesc.txt", localePath);
+	snprintf (szSkillTableFileName, sizeof (szSkillTableFileName),	"%s/SkillTable.txt", GetLocalePathCommon());
+	snprintf (szInsultList,	sizeof (szInsultList),	"%s/insult.txt", localePath);
 
 	rkNPCMgr.Destroy();
-	rkItemMgr.Destroy();	
+	rkItemMgr.Destroy();
 	rkSkillMgr.Destroy();
 
 	if (!rkItemMgr.LoadItemList(szItemList))
 	{
 		TraceError("LoadLocaleData - LoadItemList(%s) Error", szItemList);
-	}	
+	}
 
 	if (!rkItemMgr.LoadItemTable(szItemProto))
 	{
@@ -881,7 +865,7 @@ bool LoadLocaleData(const char* localePath)
 
 	if (!rkItemMgr.LoadItemDesc(szItemDesc))
 	{
-		Tracenf("LoadLocaleData - LoadItemDesc(%s) Error", szItemDesc);	
+		Tracenf("LoadLocaleData - LoadItemDesc(%s) Error", szItemDesc);
 	}
 
 	if (!rkNPCMgr.LoadNonPlayerData(szMobProto))
@@ -904,26 +888,11 @@ bool LoadLocaleData(const char* localePath)
 
 	if (!rkNetStream.LoadInsultList(szInsultList))
 	{
-		Tracenf("CPythonApplication - CPythonNetworkStream::LoadInsultList(%s)", szInsultList);				
+		Tracenf("CPythonApplication - CPythonNetworkStream::LoadInsultList(%s)", szInsultList);
 	}
 
-	if (LocaleService_IsYMIR())
-	{	
-		char szEmpireTextConvFile[256];
-		for (DWORD dwEmpireID=1; dwEmpireID<=3; ++dwEmpireID)
-		{			
-			sprintf(szEmpireTextConvFile, "%s/lang%d.cvt", localePath, dwEmpireID);
-			if (!rkNetStream.LoadConvertTable(dwEmpireID, szEmpireTextConvFile))
-			{
-				TraceError("LoadLocaleData - CPythonNetworkStream::LoadConvertTable(%d, %s) FAILURE", dwEmpireID, szEmpireTextConvFile);			
-			}
-		}
-	}
-
-	NANOEND
-		return true;
+	return true;
 }
-// END_OF_SUPPORT_NEW_KOREA_SERVER
 
 unsigned __GetWindowMode(bool windowed)
 {
@@ -940,7 +909,9 @@ bool CPythonApplication::Create(PyObject * poSelf, const char * c_szName, int wi
 
 	bool bAnotherWindow = false;
 
-	if (FindWindow(NULL, c_szName))
+	std::wstring wWindowName = Utf8ToWide(c_szName ? c_szName : "");
+
+	if (FindWindowW(nullptr, wWindowName.c_str()))
 		bAnotherWindow = true;
 
 	m_dwWidth = width;
@@ -951,7 +922,6 @@ bool CPythonApplication::Create(PyObject * poSelf, const char * c_szName, int wi
 
 	if (!CMSWindow::Create(c_szName, 4, 0, WindowMode, ::LoadIcon( GetInstance(), MAKEINTRESOURCE( IDI_METIN2 ) ), IDC_CURSOR_NORMAL))
 	{
-		//PyErr_SetString(PyExc_RuntimeError, "CMSWindow::Create failed");
 		TraceError("CMSWindow::Create failed");
 		SET_EXCEPTION(CREATE_WINDOW);
 		return false;
@@ -966,10 +936,7 @@ bool CPythonApplication::Create(PyObject * poSelf, const char * c_szName, int wi
 	m_pyNetworkStream.Discord_Start();
 #endif
 
-	// Ç®½ºÅ©¸° ¸ðµåÀÌ°í
-	// µðÆúÆ® IME ¸¦ »ç¿ëÇÏ°Å³ª À¯·´ ¹öÀüÀÌ¸é
-	// À©µµ¿ì Ç®½ºÅ©¸° ¸ðµå¸¦ »ç¿ëÇÑ´Ù
-	if (!m_pySystem.IsWindowed() && (m_pySystem.IsUseDefaultIME() || LocaleService_IsEUROPE()))
+	if (!m_pySystem.IsWindowed())
 	{
 		m_isWindowed = false;
 		m_isWindowFullScreenEnable = TRUE;
@@ -1012,7 +979,6 @@ bool CPythonApplication::Create(PyObject * poSelf, const char * c_szName, int wi
 		// Cursor
 		if (!CreateCursors())
 		{
-			//PyErr_SetString(PyExc_RuntimeError, "CMSWindow::Cursors Create Error");
 			TraceError("CMSWindow::Cursors Create Error");
 			SET_EXCEPTION("CREATE_CURSOR");
 			return false;
@@ -1057,7 +1023,7 @@ bool CPythonApplication::Create(PyObject * poSelf, const char * c_szName, int wi
 
 		SetVisibleMode(true);
 
-		if (m_isWindowFullScreenEnable) //m_pySystem.IsUseDefaultIME() && !m_pySystem.IsWindowed())
+		if (m_isWindowFullScreenEnable)
 		{
 			SetWindowPos(GetWindowHandle(), HWND_TOP, 0, 0, width, height, SWP_SHOWWINDOW);
 		}
@@ -1076,7 +1042,6 @@ bool CPythonApplication::Create(PyObject * poSelf, const char * c_szName, int wi
 		// Network
 		if (!m_netDevice.Create())
 		{
-			//PyErr_SetString(PyExc_RuntimeError, "NetDevice::Create failed");
 			TraceError("NetDevice::Create failed");
 			SET_EXCEPTION("CREATE_NETWORK");
 			return false;

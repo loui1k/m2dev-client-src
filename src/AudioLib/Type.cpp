@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "Type.h"
 #include "EterLib/TextFileLoader.h"
+#include <utf8.h>
 
 std::string NSound::strResult;
 
@@ -91,7 +92,9 @@ bool NSound::SaveSoundInformationPiece(const char* c_szFileName, NSound::TSoundD
 	std::string strResult;
 	strResult = c_szFileName;
 
-	FILE* File = fopen(c_szFileName, "wt");
+	// UTF-8 → UTF-16 conversion for Unicode path support
+	std::wstring wFileName = Utf8ToWide(c_szFileName);
+	FILE* File = _wfopen(wFileName.c_str(), L"wt");
 
 	if (!File)
 	{

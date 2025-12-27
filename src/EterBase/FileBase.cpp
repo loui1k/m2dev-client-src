@@ -1,6 +1,8 @@
 #include "StdAfx.h"
 #include "FileBase.h"
 
+#include <utf8.h>
+
 CFileBase::CFileBase() : m_hFile(NULL), m_dwSize(0)
 {
 }
@@ -34,9 +36,12 @@ BOOL CFileBase::Create(const char* filename, EFileMode mode)
 {
 	Destroy();
 
+	// Keep filename internally as UTF-8 (engine side)
 	strncpy(m_filename, filename, MAX_PATH);
+	m_filename[MAX_PATH - 1] = '\0';
 
-	DWORD dwMode, dwShareMode = FILE_SHARE_READ;
+	DWORD dwMode;
+	DWORD dwShareMode = FILE_SHARE_READ;
 
 	if (mode == FILEMODE_WRITE)
 	{
@@ -44,19 +49,26 @@ BOOL CFileBase::Create(const char* filename, EFileMode mode)
 		dwShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
 	}
 	else
+	{
 		dwMode = GENERIC_READ;
+	}
 
-	m_hFile = CreateFile(filename,					// name of the file
-						 dwMode,					// desired access
-						 dwShareMode,				// share mode
-						 NULL,						// security attributes
-						 mode == FILEMODE_READ ? OPEN_EXISTING : OPEN_ALWAYS, // creation disposition
-						 FILE_ATTRIBUTE_NORMAL,		// flags and attr
-						 NULL);						// template file
+	// UTF-8 -> UTF-16 conversion for WinAPI
+	std::wstring wFilename = Utf8ToWide(filename);
+
+	m_hFile = CreateFileW(
+		wFilename.c_str(),                               // UTF-16 path
+		dwMode,
+		dwShareMode,
+		nullptr,
+		(mode == FILEMODE_READ) ? OPEN_EXISTING : OPEN_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL,
+		nullptr
+	);
 
 	if (m_hFile != INVALID_HANDLE_VALUE)
 	{
-		m_dwSize = GetFileSize(m_hFile, NULL);
+		m_dwSize = GetFileSize(m_hFile, nullptr);
 		m_mode = mode;
 		return true;
 	}
@@ -64,7 +76,7 @@ BOOL CFileBase::Create(const char* filename, EFileMode mode)
 /*	char buf[256];
 	GetCurrentDirectory(256, buf);
 	DWORD dwErr = GetLastError();*/
-	m_hFile = NULL;
+	m_hFile = nullptr;
 	return false;
 }
 
@@ -95,7 +107,7 @@ BOOL CFileBase::Write(const void* src, int bytes)
 {
 	DWORD dwUseless;
 	BOOL ret = WriteFile(m_hFile, src, bytes, &dwUseless, NULL);
-	
+
 	if (!ret)
 		return false;
 

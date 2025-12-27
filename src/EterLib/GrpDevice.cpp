@@ -2,7 +2,9 @@
 #include "GrpDevice.h"
 #include "EterBase/Stl.h"
 #include "EterBase/Debug.h"
+
 #include <intrin.h>
+#include <utf8.h>
 
 bool CPU_HAS_SSE2 = false;
 bool GRAPHICS_CAPS_CAN_NOT_DRAW_LINE = false;
@@ -48,9 +50,16 @@ void CGraphicDevice::RegisterWarningString(UINT uiMsg, const char * c_szString)
 
 void CGraphicDevice::__WarningMessage(HWND hWnd, UINT uiMsg)
 {
-	if (m_kMap_strWarningMessage.end() == m_kMap_strWarningMessage.find(uiMsg))
+	auto it = m_kMap_strWarningMessage.find(uiMsg);
+	if (it == m_kMap_strWarningMessage.end())
 		return;
-	MessageBox(hWnd, m_kMap_strWarningMessage[uiMsg].c_str(), "Warning", MB_OK|MB_TOPMOST);
+
+	const std::string& msgUtf8 = it->second;
+
+	std::wstring wMsg = Utf8ToWide(msgUtf8);
+	std::wstring wCaption = L"Warning"; // static wide literal is fine
+
+	MessageBoxW(hWnd, wMsg.c_str(), wCaption.c_str(), MB_OK | MB_TOPMOST);
 }
 
 void CGraphicDevice::MoveWebBrowserRect(const RECT& c_rcWebPage)
@@ -148,9 +157,9 @@ LPDIRECT3DVERTEXDECLARATION9 CGraphicDevice::CreatePNTStreamVertexShader()
 
 	if (ms_lpd3dDevice->CreateVertexDeclaration(pShaderDecl, &dwShader) != D3D_OK)
 	{
-		char szError[1024];
-		sprintf(szError, "Failed to create CreatePNTStreamVertexShader");
-		MessageBox(NULL, szError, "Vertex Shader Error", MB_ICONSTOP);
+		wchar_t szError[1024];
+		swprintf(szError, L"Failed to create CreatePNTStreamVertexShader");
+		MessageBoxW(NULL, szError, L"Vertex Shader Error", MB_ICONSTOP);
 	}
 
 	return dwShader;
@@ -172,9 +181,9 @@ LPDIRECT3DVERTEXDECLARATION9 CGraphicDevice::CreatePNT2StreamVertexShader()
 
 	if (ms_lpd3dDevice->CreateVertexDeclaration(pShaderDecl, &dwShader) != D3D_OK)
 	{
-		char szError[1024];
-		sprintf(szError, "Failed to create CreatePNT2StreamVertexShader");
-		MessageBox(NULL, szError, "Vertex Shader Error", MB_ICONSTOP);
+		wchar_t szError[1024];
+		swprintf(szError, L"Failed to create CreatePNT2StreamVertexShader");
+		MessageBoxW(NULL, szError, L"Vertex Shader Error", MB_ICONSTOP);
 	}
 
 	return dwShader;
@@ -194,9 +203,9 @@ LPDIRECT3DVERTEXDECLARATION9 CGraphicDevice::CreatePTStreamVertexShader()
 
 	if (ms_lpd3dDevice->CreateVertexDeclaration(pShaderDecl, &dwShader) != D3D_OK)
 	{
-		char szError[1024];
-		sprintf(szError, "Failed to create CreatePTStreamVertexShader");
-		MessageBox(NULL, szError, "Vertex Shader Error", MB_ICONSTOP);
+		wchar_t szError[1024];
+		swprintf(szError, L"Failed to create CreatePTStreamVertexShader");
+		MessageBoxW(NULL, szError, L"Vertex Shader Error", MB_ICONSTOP);
 	}
 
 	return dwShader;
@@ -221,9 +230,9 @@ LPDIRECT3DVERTEXDECLARATION9 CGraphicDevice::CreateDoublePNTStreamVertexShader()
 
 	if (ms_lpd3dDevice->CreateVertexDeclaration(pShaderDecl, &dwShader) != D3D_OK)
 	{
-		char szError[1024];
-		sprintf(szError, "Failed to create CreateDoublePNTStreamVertexShader");
-		MessageBox(NULL, szError, "Vertex Shader Error", MB_ICONSTOP);
+		wchar_t szError[1024];
+		swprintf(szError, L"Failed to create CreateDoublePNTStreamVertexShader");
+		MessageBoxW(NULL, szError, L"Vertex Shader Error", MB_ICONSTOP);
 	}
 
 	return dwShader;

@@ -2,11 +2,17 @@
 #include "TempFile.h"
 #include "Utils.h"
 #include "Debug.h"
+#include <utf8.h>
 
 CTempFile::~CTempFile()
 {
 	Destroy();
-	DeleteFile(m_szFileName);
+
+	if (m_szFileName[0])
+	{
+		std::wstring wPath = Utf8ToWide(m_szFileName);
+		DeleteFileW(wPath.c_str());
+	}
 }
 
 CTempFile::CTempFile(const char * c_pszPrefix)

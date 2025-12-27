@@ -3,17 +3,18 @@
 #include "StateManager.h"
 #include "IME.h"
 #include "TextTag.h"
-#include "EterLocale/StringCodec.h"
 #include "EterBase/Utils.h"
 #include "EterLocale/Arabic.h"
 
 #include <unordered_map>
+#include <utf8.h>
 
-extern DWORD GetDefaultCodePage();
+// Forward declaration to avoid header conflicts
+extern bool IsRTL();
 
 const float c_fFontFeather = 0.5f;
 
-CDynamicPool<CGraphicTextInstance>		CGraphicTextInstance::ms_kPool;
+CDynamicPool<CGraphicTextInstance> CGraphicTextInstance::ms_kPool;
 
 static int gs_mx = 0;
 static int gs_my = 0;
@@ -32,14 +33,14 @@ int CGraphicTextInstance::Hyperlink_GetText(char* buf, int len)
 	if (gs_hyperlinkText.empty())
 		return 0;
 
-	int codePage = GetDefaultCodePage();
+	int written = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, gs_hyperlinkText.c_str(), (int)gs_hyperlinkText.length(), buf, len, nullptr, nullptr);
 
-	return Ymir_WideCharToMultiByte(codePage, 0, gs_hyperlinkText.c_str(), gs_hyperlinkText.length(), buf, len, NULL, NULL);	
+	return (written > 0) ? written : 0;
 }
 
-int CGraphicTextInstance::__DrawCharacter(CGraphicFontTexture * pFontTexture, WORD codePage, wchar_t text, DWORD dwColor)
+int CGraphicTextInstance::__DrawCharacter(CGraphicFontTexture * pFontTexture, wchar_t text, DWORD dwColor)
 {
-	CGraphicFontTexture::TCharacterInfomation* pInsCharInfo = pFontTexture->GetCharacterInfomation(codePage, text);
+	CGraphicFontTexture::TCharacterInfomation* pInsCharInfo = pFontTexture->GetCharacterInfomation(text);
 
 	if (pInsCharInfo)
 	{
@@ -50,7 +51,7 @@ int CGraphicTextInstance::__DrawCharacter(CGraphicFontTexture * pFontTexture, WO
 		m_textHeight = std::max((WORD)pInsCharInfo->height, m_textHeight);
 		return pInsCharInfo->advance;
 	}
-	
+
 	return 0;
 }
 
@@ -78,75 +79,49 @@ void CGraphicTextInstance::__GetTextPos(DWORD index, float* x, float* y)
 	*y = sy;
 }
 
-bool isNumberic(const char chr)
-{
-	if (chr >= '0' && chr <= '9')
-		return true;
-	return false;
-}
-
-bool IsValidToken(const char* iter)
-{
-	return	iter[0]=='@' && 
-		isNumberic(iter[1]) && 
-		isNumberic(iter[2]) && 
-		isNumberic(iter[3]) && 
-		isNumberic(iter[4]);
-}
-
-const char* FindToken(const char* begin, const char* end)
-{
-	while(begin < end)
-	{
-		begin = std::find(begin, end, '@');
-
-		if(end-begin>5 && IsValidToken(begin))
-		{
-			return begin;
-		}
-		else
-		{
-			++begin;
-		}
-	}
-
-	return end;
-}
-
-int ReadToken(const char* token)
-{
-	int nRet = (token[1]-'0')*1000 + (token[2]-'0')*100 + (token[3]-'0')*10 + (token[4]-'0');
-	if (nRet == 9999)
-		return CP_UTF8;
-	return nRet;
-}
-
 void CGraphicTextInstance::Update()
 {
-	if (m_isUpdate) // 문자열이 바뀌었을 때만 업데이트 한다.
+	if (m_isUpdate)
 		return;
 
-	if (m_roText.IsNull())
+	// Get space height first for empty text cursor rendering
+	int spaceHeight = 12; // default fallback
+	if (!m_roText.IsNull() && !m_roText->IsEmpty())
 	{
-		Tracef("CGraphicTextInstance::Update - 폰트가 설정되지 않았습니다\n");
-		return;
+		CGraphicFontTexture* pFontTexture = m_roText->GetFontTexturePointer();
+		if (pFontTexture)
+		{
+			CGraphicFontTexture::TCharacterInfomation* pSpaceInfo = pFontTexture->GetCharacterInfomation(L' ');
+			spaceHeight = pSpaceInfo ? pSpaceInfo->height : 12;
+		}
 	}
 
-	if (m_roText->IsEmpty())
+	auto ResetState = [&, spaceHeight]()
+		{
+			m_pCharInfoVector.clear();
+			m_dwColorInfoVector.clear();
+			m_hyperlinkVector.clear();
+			m_logicalToVisualPos.clear();
+			m_visualToLogicalPos.clear();
+			m_textWidth = 0;
+			m_textHeight = spaceHeight; // Use space height instead of 0 for cursor rendering
+			m_computedRTL = (m_direction == ETextDirection::RTL);
+			m_isUpdate = true;
+		};
+
+	if (m_roText.IsNull() || m_roText->IsEmpty())
+	{
+		ResetState();
 		return;
+	}
 
 	CGraphicFontTexture* pFontTexture = m_roText->GetFontTexturePointer();
 	if (!pFontTexture)
+	{
+		ResetState();
 		return;
+	}
 
-	UINT defCodePage = GetDefaultCodePage();
-
-	UINT dataCodePage = defCodePage; // 아랍 및 베트남 내부 데이터를 UTF8 을 사용하려 했으나 실패
-		
-	CGraphicFontTexture::TCharacterInfomation* pSpaceInfo = pFontTexture->GetCharacterInfomation(dataCodePage, ' ');
-
-	int spaceHeight = pSpaceInfo ? pSpaceInfo->height : 12;
-	
 	m_pCharInfoVector.clear();
 	m_dwColorInfoVector.clear();
 	m_hyperlinkVector.clear();
@@ -154,332 +129,620 @@ void CGraphicTextInstance::Update()
 	m_textWidth = 0;
 	m_textHeight = spaceHeight;
 
-	/* wstring begin */ 	
+	const char* utf8 = m_stText.c_str();
+	const int utf8Len = (int)m_stText.size();
+	const DWORD defaultColor = m_dwTextColor;
 
-	const char* begin = m_stText.c_str();
-	const char* end = begin + m_stText.length();
-
-	int wTextMax = (end - begin) * 2;
-	wchar_t* wText = (wchar_t*)_alloca(sizeof(wchar_t)*wTextMax);
-
-	DWORD dwColor = m_dwTextColor;
-
-	/* wstring end */
-	while (begin < end)
+	// UTF-8 -> UTF-16 conversion - reserve enough space to avoid reallocation
+	std::vector<wchar_t> wTextBuf((size_t)utf8Len + 1u, 0);
+	const int wTextLen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, utf8Len, wTextBuf.data(), (int)wTextBuf.size());
+	if (wTextLen <= 0)
 	{
-		const char * token = FindToken(begin, end);
+		ResetState();
+		return;
+	}
 
-		int wTextLen = Ymir_MultiByteToWideChar(dataCodePage, 0, begin, token - begin, wText, wTextMax);
 
-		if (m_isSecret)
+	// Detect user-typed text direction (skip hyperlink and color tags)
+	// Used to determine segment order
+	bool userTextIsRTL = false;
+	bool foundUserText = false;
+	{
+		int hyperlinkStep = 0; // 0 = normal, 1 = in metadata (hidden), 2 = in visible text
+		const int wTextLenMinusOne = wTextLen - 1;
+
+		for (int i = 0; i < wTextLen; ++i)
 		{
-			for(int i=0; i<wTextLen; ++i)
-				__DrawCharacter(pFontTexture, dataCodePage, '*', dwColor);
-		} 
-		else 
-		{
-			if (defCodePage == CP_ARABIC) // ARABIC
+			// Check for tags (cache bounds check)
+			if (i < wTextLenMinusOne && wTextBuf[i] == L'|')
 			{
-
-				wchar_t* wArabicText = (wchar_t*)_alloca(sizeof(wchar_t) * wTextLen);
-				int wArabicTextLen = Arabic_MakeShape(wText, wTextLen, wArabicText, wTextLen);
-
-				bool isEnglish = true;
-				int nEnglishBase = wArabicTextLen - 1;
-
-				//<<하이퍼 링크>>
-				int x = 0;
-
-				int len;				
-				int hyperlinkStep = 0;
-				SHyperlink kHyperlink;
-				std::wstring hyperlinkBuffer;
-				int no_hyperlink = 0;
-
-				// 심볼로 끝나면 아랍어 모드로 시작해야한다
-				if (Arabic_IsInSymbol(wArabicText[wArabicTextLen - 1]))
+				if (wTextBuf[i + 1] == L'H')
 				{
-					isEnglish = false;
+					hyperlinkStep = 1; // Start metadata
+					++i;
+					continue;
 				}
-				
-				int i = 0;
-				for (i = wArabicTextLen - 1 ; i >= 0; --i)
+				else if (wTextBuf[i + 1] == L'h')
 				{
-					wchar_t wArabicChar = wArabicText[i];
-
-					if (isEnglish)
-					{
-
-						// <<심볼의 경우 (ex. 기호, 공백)>> -> 영어 모드 유지.
-						//		<<(심볼이 아닌 것들 : 숫자, 영어, 아랍어)>>
-						//  (1) 맨 앞의 심볼 or
-						//	(2) 
-						//		1) 앞 글자가 아랍어 아님 &&
-						//		2) 뒷 글자가 아랍어 아님 &&
-						//		3) 뒷 글자가 심볼'|'이 아님 &&
-						//		or
-						//	(3) 현재 심볼이 '|'
-						// <<아랍어 모드로 넘어가는 경우 : 심볼에서.>>
-						//	1) 앞글자 아랍어
-						//	2) 뒷글자 아랍어
-						//
-						//
-						if (Arabic_IsInSymbol(wArabicChar) && (
-								(i == 0) ||
-								(i > 0 && 
-									!(Arabic_HasPresentation(wArabicText, i - 1) || Arabic_IsInPresentation(wArabicText[i + 1]))  && //앞글자, 뒷글자가 아랍어 아님.
-									wArabicText[i+1] != '|'
-								) ||
-								wArabicText[i] == '|'
-							))//if end.
-						{
-							// pass
-							int temptest = 1;
-						}
-						// (1)아랍어이거나 (2)아랍어 다음의 심볼이라면 아랍어 모드 전환
-						else if (Arabic_IsInPresentation(wArabicChar) || Arabic_IsInSymbol(wArabicChar))
-						{
-							//그 전까지의 영어를 그린다.
-							for (int e = i + 1; e <= nEnglishBase;) {
-								int ret = GetTextTag(&wArabicText[e], wArabicTextLen - e, len, hyperlinkBuffer);
-
-								if (ret == TEXT_TAG_PLAIN || ret == TEXT_TAG_TAG)
-								{
-									if (hyperlinkStep == 1)
-										hyperlinkBuffer.append(1, wArabicText[e]);
-									else
-									{
-										int charWidth = __DrawCharacter(pFontTexture, dataCodePage, wArabicText[e], dwColor);
-										kHyperlink.ex += charWidth;
-										//x += charWidth;
-										
-										//기존 추가한 하이퍼링크의 좌표 수정.
-										for (int j = 1; j <= no_hyperlink; j++)
-										{
-											if(m_hyperlinkVector.size() < j)
-												break;
-
-											SHyperlink & tempLink = m_hyperlinkVector[m_hyperlinkVector.size() - j];
-											tempLink.ex += charWidth;
-											tempLink.sx += charWidth;
-										}
-									}
-								}
-								else
-								{
-									if (ret == TEXT_TAG_COLOR)
-										dwColor = htoi(hyperlinkBuffer.c_str(), 8);
-									else if (ret == TEXT_TAG_RESTORE_COLOR)
-										dwColor = m_dwTextColor;
-									else if (ret == TEXT_TAG_HYPERLINK_START)
-									{
-										hyperlinkStep = 1;
-										hyperlinkBuffer = L"";
-									}
-									else if (ret == TEXT_TAG_HYPERLINK_END)
-									{
-										if (hyperlinkStep == 1)
-										{
-											++hyperlinkStep;
-											kHyperlink.ex = kHyperlink.sx = 0; // 실제 텍스트가 시작되는 위치
-										}
-										else
-										{
-											kHyperlink.text = hyperlinkBuffer;
-											m_hyperlinkVector.push_back(kHyperlink);
-											no_hyperlink++;
-
-
-											hyperlinkStep = 0;
-											hyperlinkBuffer = L"";						
-										}
-									}
-								}
-								e += len;
-							}
-
-							int charWidth = __DrawCharacter(pFontTexture, dataCodePage, Arabic_ConvSymbol(wArabicText[i]), dwColor);
-							kHyperlink.ex += charWidth;
-							
-							//기존 추가한 하이퍼링크의 좌표 수정.
-							for (int j = 1; j <= no_hyperlink; j++)
-							{
-								if(m_hyperlinkVector.size() < j)
-									break;
-
-								SHyperlink & tempLink = m_hyperlinkVector[m_hyperlinkVector.size() - j];
-								tempLink.ex += charWidth;
-								tempLink.sx += charWidth;
-							}
-
-							isEnglish = false;
-						}
-					}
-					else //[[[아랍어 모드]]]
-					{
-						// 아랍어이거나 아랍어 출력중 나오는 심볼이라면
-						if (Arabic_IsInPresentation(wArabicChar) || Arabic_IsInSymbol(wArabicChar))
-						{
-							int charWidth = __DrawCharacter(pFontTexture, dataCodePage, Arabic_ConvSymbol(wArabicText[i]), dwColor);
-							kHyperlink.ex += charWidth;
-							x += charWidth;
-							
-							//기존 추가한 하이퍼링크의 좌표 수정.
-							for (int j = 1; j <= no_hyperlink; j++)
-							{
-								if(m_hyperlinkVector.size() < j)
-									break;
-
-								SHyperlink & tempLink = m_hyperlinkVector[m_hyperlinkVector.size() - j];
-								tempLink.ex += charWidth;
-								tempLink.sx += charWidth;
-							}
-						}
-						else //영어이거나, 영어 다음에 나오는 심볼이라면,
-						{
-							nEnglishBase = i;
-							isEnglish = true;
-						}
-					}
+					if (hyperlinkStep == 1)
+						hyperlinkStep = 2; // End metadata, start visible
+					else if (hyperlinkStep == 2)
+						hyperlinkStep = 0; // End visible
+					++i;
+					continue;
 				}
-
-				if (isEnglish)
+				else if (wTextBuf[i + 1] == L'c' && i + 10 <= wTextLen)
 				{
-					for (int e = i + 1; e <= nEnglishBase;) {
-						int ret = GetTextTag(&wArabicText[e], wArabicTextLen - e, len, hyperlinkBuffer);
-
-						if (ret == TEXT_TAG_PLAIN || ret == TEXT_TAG_TAG)
-						{
-							if (hyperlinkStep == 1)
-								hyperlinkBuffer.append(1, wArabicText[e]);
-							else
-							{
-								int charWidth = __DrawCharacter(pFontTexture, dataCodePage, wArabicText[e], dwColor);
-								kHyperlink.ex += charWidth;
-
-								//기존 추가한 하이퍼링크의 좌표 수정.
-								for (int j = 1; j <= no_hyperlink; j++)
-								{
-									if(m_hyperlinkVector.size() < j)
-										break;
-
-									SHyperlink & tempLink = m_hyperlinkVector[m_hyperlinkVector.size() - j];
-									tempLink.ex += charWidth;
-									tempLink.sx += charWidth;
-								}
-							}
-						}
-						else
-						{
-							if (ret == TEXT_TAG_COLOR)
-								dwColor = htoi(hyperlinkBuffer.c_str(), 8);
-							else if (ret == TEXT_TAG_RESTORE_COLOR)
-								dwColor = m_dwTextColor;
-							else if (ret == TEXT_TAG_HYPERLINK_START)
-							{
-								hyperlinkStep = 1;
-								hyperlinkBuffer = L"";
-							}
-							else if (ret == TEXT_TAG_HYPERLINK_END)
-							{
-								if (hyperlinkStep == 1)
-								{
-									++hyperlinkStep;
-									kHyperlink.ex = kHyperlink.sx = 0; // 실제 텍스트가 시작되는 위치
-								}
-								else
-								{
-									kHyperlink.text = hyperlinkBuffer;
-									m_hyperlinkVector.push_back(kHyperlink);
-									no_hyperlink++;
-
-									hyperlinkStep = 0;
-									hyperlinkBuffer = L"";						
-								}
-							}
-						}
-						e += len;
-					}
-
+					// Color tag |cFFFFFFFF - skip 10 characters
+					i += 9; // +1 from loop increment = 10 total
+					continue;
+				}
+				else if (wTextBuf[i + 1] == L'r')
+				{
+					// Color end tag |r - skip
+					++i;
+					continue;
 				}
 			}
-			else	// 아랍외 다른 지역.
+
+			// Only check user-typed text (step 0 = normal text)
+			// SKIP hyperlink visible text (step 2) to prevent hyperlink language from affecting direction
+			if (hyperlinkStep == 0)
 			{
-				int x = 0;
-				int len;				
-				int hyperlinkStep = 0;
-				SHyperlink kHyperlink;
-				std::wstring hyperlinkBuffer;
-
-				for (int i = 0; i < wTextLen; )
+				if (IsRTLCodepoint(wTextBuf[i]))
 				{
-					int ret = GetTextTag(&wText[i], wTextLen - i, len, hyperlinkBuffer);
-
-					if (ret == TEXT_TAG_PLAIN || ret == TEXT_TAG_TAG)
-					{
-						if (hyperlinkStep == 1)
-							hyperlinkBuffer.append(1, wText[i]);
-						else
-						{
-							int charWidth = __DrawCharacter(pFontTexture, dataCodePage, wText[i], dwColor);
-							kHyperlink.ex += charWidth;
-							x += charWidth;
-						}
-					}
-					else
-					{
-						if (ret == TEXT_TAG_COLOR)
-							dwColor = htoi(hyperlinkBuffer.c_str(), 8);
-						else if (ret == TEXT_TAG_RESTORE_COLOR)
-							dwColor = m_dwTextColor;
-						else if (ret == TEXT_TAG_HYPERLINK_START)
-						{
-							hyperlinkStep = 1;
-							hyperlinkBuffer = L"";
-						}
-						else if (ret == TEXT_TAG_HYPERLINK_END)
-						{
-							if (hyperlinkStep == 1)
-							{
-								++hyperlinkStep;
-								kHyperlink.ex = kHyperlink.sx = x; // 실제 텍스트가 시작되는 위치
-							}
-							else
-							{
-								kHyperlink.text = hyperlinkBuffer;
-								m_hyperlinkVector.push_back(kHyperlink);
-
-								hyperlinkStep = 0;
-								hyperlinkBuffer = L"";						
-							}
-						}
-					}
-					i += len;
+					userTextIsRTL = true;
+					foundUserText = true;
+					break;
+				}
+				if (IsStrongAlpha(wTextBuf[i]))
+				{
+					userTextIsRTL = false;
+					foundUserText = true;
+					break;
 				}
 			}
 		}
+	}
 
-		if (token < end)
-		{			
-			int newCodePage = ReadToken(token);			
-			dataCodePage = newCodePage;	// 아랍 및 베트남 내부 데이터를 UTF8 을 사용하려 했으나 실패
-			begin = token + 5;			
+	// Base direction for BiDi algorithm (for non-hyperlink text reordering)
+	const bool baseRTL =
+		(m_direction == ETextDirection::RTL) ? true :
+		(m_direction == ETextDirection::LTR) ? false :
+		userTextIsRTL;
+
+	// Computed direction for rendering and alignment
+	// Always use baseRTL to respect the UI direction setting
+	// In RTL UI, all text (input and display) should use RTL alignment
+	m_computedRTL = baseRTL;
+
+	// Secret: draw '*' but keep direction
+	if (m_isSecret)
+	{
+		for (int i = 0; i < wTextLen; ++i)
+			__DrawCharacter(pFontTexture, L'*', defaultColor);
+
+		pFontTexture->UpdateTexture();
+		m_isUpdate = true;
+		return;
+	}
+
+	const bool hasTags = (std::find(wTextBuf.begin(), wTextBuf.begin() + wTextLen, L'|') != (wTextBuf.begin() + wTextLen));
+
+	// ========================================================================
+	// Case 1: No tags - Simple BiDi reordering
+	// ========================================================================
+	if (!hasTags)
+	{
+		// Build identity mapping (logical == visual for tagless text)
+		const size_t mappingSize = (size_t)wTextLen + 1;
+		m_logicalToVisualPos.resize(mappingSize);
+		m_visualToLogicalPos.resize(mappingSize);
+		for (int i = 0; i <= wTextLen; ++i)
+		{
+			m_logicalToVisualPos[i] = i;
+			m_visualToLogicalPos[i] = i;
+		}
+
+		// Check for RTL characters and chat message format in single pass
+		bool hasRTL = false;
+		bool isChatMessage = false;
+		const wchar_t* wTextPtr = wTextBuf.data();
+
+		for (int i = 0; i < wTextLen; ++i)
+		{
+			if (!hasRTL && IsRTLCodepoint(wTextPtr[i]))
+				hasRTL = true;
+
+			if (!isChatMessage && i < wTextLen - 2 &&
+			    wTextPtr[i] == L' ' && wTextPtr[i + 1] == L':' && wTextPtr[i + 2] == L' ')
+				isChatMessage = true;
+
+			// Early exit if both found
+			if (hasRTL && isChatMessage)
+				break;
+		}
+
+		// Apply BiDi if text contains RTL OR is a chat message in RTL UI
+		// Skip BiDi for regular input text like :)) in RTL UI
+		if (hasRTL || (baseRTL && isChatMessage))
+		{
+			std::vector<wchar_t> visual = BuildVisualBidiText_Tagless(wTextBuf.data(), wTextLen, baseRTL);
+			for (size_t i = 0; i < visual.size(); ++i)
+				__DrawCharacter(pFontTexture, visual[i], defaultColor);
 		}
 		else
 		{
-			begin = token;
+			// Pure LTR text or non-chat input - no BiDi processing
+			for (int i = 0; i < wTextLen; ++i)
+				__DrawCharacter(pFontTexture, wTextBuf[i], defaultColor);
+		}
+	}
+	// ========================================================================
+	// Case 2: Has tags - Parse tags and apply BiDi to segments
+	// ========================================================================
+	else
+	{
+		// Check if text contains RTL characters (cache pointer for performance)
+		bool hasRTL = false;
+		const wchar_t* wTextPtr = wTextBuf.data();
+		for (int i = 0; i < wTextLen; ++i)
+		{
+			if (IsRTLCodepoint(wTextPtr[i]))
+			{
+				hasRTL = true;
+				break;
+			}
+		}
+		struct TVisChar
+		{
+			wchar_t ch;
+			DWORD color;
+			int linkIndex; // -1 = none, otherwise index into linkTargets
+			int logicalPos;  // logical index in original wTextBuf (includes tags)
+		};
+
+		auto ReorderTaggedWithBidi = [&](std::vector<TVisChar>& vis, bool forceRTL)
+		{
+			if (vis.empty())
+				return;
+
+			// Extract only characters
+			std::vector<wchar_t> buf;
+			buf.reserve(vis.size());
+			for (const auto& vc : vis)
+				buf.push_back(vc.ch);
+
+			// Use the exact same BiDi engine as tagless text
+			std::vector<wchar_t> visual = BuildVisualBidiText_Tagless(buf.data(), (int)buf.size(), forceRTL);
+
+			// If size differs (rare, but can happen with Arabic shaping expansion),
+			// do a safe best-effort resize while preserving style.
+			if ((int)visual.size() != (int)vis.size())
+			{
+				// Keep style from nearest original character
+				std::vector<TVisChar> resized;
+				resized.reserve(visual.size());
+
+				if (vis.empty())
+					return;
+
+				for (size_t i = 0; i < visual.size(); ++i)
+				{
+					size_t src = (i < vis.size()) ? i : (vis.size() - 1);
+					TVisChar tmp = vis[src];
+					tmp.ch = visual[i];
+					resized.push_back(tmp);
+				}
+				vis.swap(resized);
+				return;
+			}
+
+			// Same size: just write back characters, keep color + linkIndex intact
+			for (size_t i = 0; i < vis.size(); ++i)
+				vis[i].ch = visual[i];
+		};
+
+		DWORD curColor = defaultColor;
+
+		// hyperlinkStep: 0=none, 1=collecting target after |H, 2=visible section between |h and |h
+		int hyperlinkStep = 0;
+		std::wstring hyperlinkTarget;
+		hyperlinkTarget.reserve(64); // Reserve typical hyperlink target size
+		int activeLinkIndex = -1;
+
+		std::vector<std::wstring> linkTargets; // linkTargets[i] is target text for link i
+		linkTargets.reserve(4); // Reserve space for typical number of links
+
+		std::vector<TVisChar> logicalVis;
+		logicalVis.reserve((size_t)wTextLen); // Reserve max possible size
+
+		// Build logical->visual position mapping (reserve to avoid reallocation)
+		const size_t mappingSize = (size_t)wTextLen + 1;
+		m_logicalToVisualPos.resize(mappingSize, 0);
+
+		// ====================================================================
+		// PHASE 1: Parse tags and collect visible characters
+		// ====================================================================
+		int tagLen = 1;
+		std::wstring tagExtra;
+
+		for (int i = 0; i < wTextLen; )
+		{
+			m_logicalToVisualPos[i] = (int)logicalVis.size();
+
+			tagExtra.clear();
+			int ret = GetTextTag(&wTextBuf[i], wTextLen - i, tagLen, tagExtra);
+			if (tagLen <= 0) tagLen = 1;
+
+			if (ret == TEXT_TAG_PLAIN)
+			{
+				wchar_t ch = wTextBuf[i];
+
+				if (hyperlinkStep == 1)
+				{
+					// Collect hyperlink target text between |H and first |h
+					hyperlinkTarget.push_back(ch);
+				}
+				else
+				{
+					// Regular visible character
+					logicalVis.push_back(TVisChar{ ch, curColor, activeLinkIndex, i });
+				}
+
+				i += 1;
+				continue;
+			}
+
+			// Tag handling
+			if (ret == TEXT_TAG_COLOR)
+			{
+				curColor = htoi(tagExtra.c_str(), 8);
+			}
+			else if (ret == TEXT_TAG_RESTORE_COLOR)
+			{
+				curColor = defaultColor;
+			}
+			else if (ret == TEXT_TAG_HYPERLINK_START)
+			{
+				hyperlinkStep = 1;
+				hyperlinkTarget.clear();
+				activeLinkIndex = -1;
+			}
+			else if (ret == TEXT_TAG_HYPERLINK_END)
+			{
+				if (hyperlinkStep == 1)
+				{
+					// End metadata => start visible section
+					hyperlinkStep = 2;
+
+					linkTargets.push_back(hyperlinkTarget);
+					activeLinkIndex = (int)linkTargets.size() - 1;
+				}
+				else if (hyperlinkStep == 2)
+				{
+					// End visible section
+					hyperlinkStep = 0;
+					activeLinkIndex = -1;
+					hyperlinkTarget.clear();
+				}
+			}
+
+			i += tagLen;
+		}
+
+		// ====================================================================
+		// PHASE 2: Apply BiDi to hyperlinks (if RTL text or RTL UI)
+		// ====================================================================
+		if (hasRTL || baseRTL)
+		{
+			// Collect all hyperlink ranges (reserve typical count)
+			struct LinkRange { int start; int end; int linkIdx; };
+			std::vector<LinkRange> linkRanges;
+			linkRanges.reserve(linkTargets.size());
+
+			int currentLink = -1;
+			int linkStart = -1;
+			const int logicalVisCount = (int)logicalVis.size();
+
+			for (int i = 0; i <= logicalVisCount; ++i)
+			{
+				const int linkIdx = (i < logicalVisCount) ? logicalVis[i].linkIndex : -1;
+
+				if (linkIdx != currentLink)
+				{
+					if (currentLink >= 0 && linkStart >= 0)
+					{
+						linkRanges.push_back({linkStart, i, currentLink});
+					}
+
+					currentLink = linkIdx;
+					linkStart = (currentLink >= 0) ? i : -1;
+				}
+			}
+
+			// Process hyperlinks in reverse order to avoid index shifting
+			const int numRanges = (int)linkRanges.size();
+			for (int rangeIdx = numRanges - 1; rangeIdx >= 0; --rangeIdx)
+			{
+				const LinkRange& range = linkRanges[rangeIdx];
+				const int linkStart = range.start;
+				const int linkEnd = range.end;
+				const int linkLength = linkEnd - linkStart;
+
+				// Extract hyperlink text (pre-reserve exact size)
+				std::vector<wchar_t> linkBuf;
+				linkBuf.reserve(linkLength);
+				for (int j = linkStart; j < linkEnd; ++j)
+					linkBuf.push_back(logicalVis[j].ch);
+
+				// Apply BiDi with LTR base direction (hyperlinks use LTR structure like [+9 item])
+				std::vector<wchar_t> linkVisual = BuildVisualBidiText_Tagless(linkBuf.data(), (int)linkBuf.size(), false);
+
+				// Normalize brackets and enhancement markers
+				const int linkVisualSize = (int)linkVisual.size();
+				if (linkVisualSize > 0)
+				{
+					// Find first '[' and first ']' (cache size)
+					int openBracket = -1, closeBracket = -1;
+					for (int j = 0; j < linkVisualSize; ++j)
+					{
+						if (linkVisual[j] == L'[' && openBracket < 0) openBracket = j;
+						if (linkVisual[j] == L']' && closeBracket < 0) closeBracket = j;
+					}
+
+					// Case 1: Brackets are reversed "]text[" => "[text]"
+					if (closeBracket >= 0 && openBracket > closeBracket)
+					{
+						std::vector<wchar_t> normalized;
+						normalized.reserve(linkVisual.size());
+
+						// Rebuild: [ + (before ]) + (between ] and [) + (after [) + ]
+						normalized.push_back(L'[');
+
+						for (int j = 0; j < closeBracket; ++j)
+							normalized.push_back(linkVisual[j]);
+
+						for (int j = closeBracket + 1; j < openBracket; ++j)
+							normalized.push_back(linkVisual[j]);
+
+						for (int j = openBracket + 1; j < (int)linkVisual.size(); ++j)
+							normalized.push_back(linkVisual[j]);
+
+						normalized.push_back(L']');
+
+						linkVisual = normalized;
+						openBracket = 0;
+						closeBracket = (int)linkVisual.size() - 1;
+					}
+
+					// Case 2: Normal brackets "[...]" - check for normalization
+					if (openBracket >= 0 && closeBracket > openBracket)
+					{
+						int pos = openBracket + 1;
+
+						// Skip leading spaces inside brackets
+						while (pos < closeBracket && linkVisual[pos] == L' ')
+						{
+							linkVisual.erase(linkVisual.begin() + pos);
+							closeBracket--;
+						}
+
+						// Check for "+<digits>" pattern and reverse to "<digits>+"
+						if (pos < closeBracket && linkVisual[pos] == L'+')
+						{
+							int digitStart = pos + 1;
+							int digitEnd = digitStart;
+
+							while (digitEnd < closeBracket && (linkVisual[digitEnd] >= L'0' && linkVisual[digitEnd] <= L'9'))
+								digitEnd++;
+
+							if (digitEnd > digitStart)
+							{
+								wchar_t plus = L'+';
+								for (int k = pos; k < digitEnd - 1; ++k)
+									linkVisual[k] = linkVisual[k + 1];
+								linkVisual[digitEnd - 1] = plus;
+							}
+						}
+					}
+				}
+
+				// Write back - handle size changes by erasing/inserting
+				const int originalSize = linkLength;
+				const int newSize = (int)linkVisual.size();
+				const int sizeDiff = newSize - originalSize;
+
+				// Replace existing characters (cache min for performance)
+				const int copyCount = (std::min)(originalSize, newSize);
+				for (int j = 0; j < copyCount; ++j)
+					logicalVis[linkStart + j].ch = linkVisual[j];
+
+				if (sizeDiff < 0)
+				{
+					// Shrunk - remove extra characters
+					logicalVis.erase(logicalVis.begin() + linkStart + newSize,
+					                 logicalVis.begin() + linkStart + originalSize);
+				}
+				else if (sizeDiff > 0)
+				{
+					// Grew - insert new characters
+					TVisChar templateChar = logicalVis[linkStart];
+					templateChar.logicalPos = logicalVis[linkStart].logicalPos;
+					for (int j = originalSize; j < newSize; ++j)
+					{
+						templateChar.ch = linkVisual[j];
+						logicalVis.insert(logicalVis.begin() + linkStart + j, templateChar);
+					}
+				}
+			}
+		}
+
+		// Apply BiDi to non-hyperlink segments and reorder segments for RTL UI
+		if (hasRTL || baseRTL)
+		{
+			// Split text into hyperlink and non-hyperlink segments (reserve typical count)
+			const size_t estimatedSegments = linkTargets.size() * 2 + 1;
+			std::vector<std::vector<TVisChar>> segments;
+			segments.reserve(estimatedSegments); // Estimate: links + text between
+
+			std::vector<bool> isHyperlink; // true if segment is a hyperlink
+			isHyperlink.reserve(estimatedSegments);
+
+			int segStart = 0;
+			int currentLinkIdx = (logicalVis.empty() ? -1 : logicalVis[0].linkIndex);
+			const int logicalVisSize2 = (int)logicalVis.size();
+
+			for (int i = 1; i <= logicalVisSize2; ++i)
+			{
+				const int linkIdx = (i < logicalVisSize2) ? logicalVis[i].linkIndex : -1;
+
+				if (linkIdx != currentLinkIdx)
+				{
+					// Segment boundary
+					std::vector<TVisChar> seg(logicalVis.begin() + segStart, logicalVis.begin() + i);
+					segments.push_back(seg);
+					isHyperlink.push_back(currentLinkIdx >= 0);
+
+					segStart = i;
+					currentLinkIdx = linkIdx;
+				}
+			}
+
+			// Apply BiDi to non-hyperlink segments only (cache segment count)
+			const size_t numSegments = segments.size();
+			for (size_t s = 0; s < numSegments; ++s)
+			{
+				if (!isHyperlink[s])
+					ReorderTaggedWithBidi(segments[s], baseRTL);
+			}
+
+			// Rebuild text from segments (reverse order for RTL UI)
+			logicalVis.clear();
+			logicalVis.reserve(logicalVisSize2); // Reserve original size
+
+			if (baseRTL)
+			{
+				// RTL UI - reverse segments for right-to-left reading
+				for (int s = (int)numSegments - 1; s >= 0; --s)
+				{
+					logicalVis.insert(logicalVis.end(), segments[s].begin(), segments[s].end());
+				}
+			}
+			else
+			{
+				// LTR UI - keep original segment order
+				for (size_t s = 0; s < numSegments; ++s)
+				{
+					logicalVis.insert(logicalVis.end(), segments[s].begin(), segments[s].end());
+				}
+			}
+		}
+
+		// ====================================================================
+		// FINAL: Rebuild visual<->logical mapping AFTER all BiDi/tag reordering
+		// ====================================================================
+
+		m_visualToLogicalPos.clear();
+		m_logicalToVisualPos.clear();
+
+		// logical positions refer to indices in wTextBuf (tagged string)
+		m_logicalToVisualPos.resize((size_t)wTextLen + 1, -1);
+		m_visualToLogicalPos.resize((size_t)logicalVis.size() + 1, wTextLen);
+
+		// Fill visual->logical from stored glyph origin
+		for (size_t v = 0; v < logicalVis.size(); ++v)
+		{
+			int lp = logicalVis[v].logicalPos;
+			if (lp < 0) lp = 0;
+			if (lp > wTextLen) lp = wTextLen;
+
+			m_visualToLogicalPos[v] = lp;
+
+			// For logical->visual, keep the first visual position that maps to lp
+			if (m_logicalToVisualPos[(size_t)lp] < 0)
+				m_logicalToVisualPos[(size_t)lp] = (int)v;
+		}
+
+		// End positions
+		m_visualToLogicalPos[logicalVis.size()] = wTextLen;
+		m_logicalToVisualPos[(size_t)wTextLen] = (int)logicalVis.size();
+
+		// Fill gaps in logical->visual so cursor movement doesn't break on tag-only regions
+		int last = 0;
+		for (int i = 0; i <= wTextLen; ++i)
+		{
+			if (m_logicalToVisualPos[(size_t)i] < 0)
+				m_logicalToVisualPos[(size_t)i] = last;
+			else
+				last = m_logicalToVisualPos[(size_t)i];
+		}
+
+		// ====================================================================
+		// PHASE 3: Render and build hyperlink ranges
+		// ====================================================================
+		m_hyperlinkVector.clear();
+		m_hyperlinkVector.reserve(linkTargets.size()); // Reserve for known hyperlinks
+
+		int x = 0;
+		int currentLink = -1;
+		SHyperlink curLinkRange{};
+		curLinkRange.sx = 0;
+		curLinkRange.ex = 0;
+
+		// Cache size for loop (avoid repeated size() calls)
+		const size_t logicalVisRenderSize = logicalVis.size();
+		for (size_t idx = 0; idx < logicalVisRenderSize; ++idx)
+		{
+			const TVisChar& vc = logicalVis[idx];
+			const int charWidth = __DrawCharacter(pFontTexture, vc.ch, vc.color);
+
+			// Hyperlink range tracking
+			const int linkIdx = vc.linkIndex;
+
+			if (linkIdx != currentLink)
+			{
+				// Close previous hyperlink
+				if (currentLink >= 0)
+				{
+					curLinkRange.text = linkTargets[(size_t)currentLink];
+					m_hyperlinkVector.push_back(curLinkRange);
+				}
+
+				// Open new hyperlink
+				currentLink = linkIdx;
+				if (currentLink >= 0)
+				{
+					curLinkRange = SHyperlink{};
+					curLinkRange.sx = (short)x;
+					curLinkRange.ex = (short)x;
+				}
+			}
+
+			if (currentLink >= 0)
+			{
+				curLinkRange.ex = (short)(curLinkRange.ex + charWidth);
+			}
+
+			x += charWidth;
+		}
+
+		// Close last hyperlink
+		if (currentLink >= 0)
+		{
+			curLinkRange.text = linkTargets[(size_t)currentLink];
+			m_hyperlinkVector.push_back(curLinkRange);
 		}
 	}
 
 	pFontTexture->UpdateTexture();
-
 	m_isUpdate = true;
 }
 
 void CGraphicTextInstance::Render(RECT * pClipRect)
 {
 	if (!m_isUpdate)
-		return;	
+		return;
 
 	CGraphicText* pkText=m_roText.GetPointer();
 	if (!pkText)
@@ -492,9 +755,8 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 	float fStanX = m_v3Position.x;
 	float fStanY = m_v3Position.y + 1.0f;
 
-	UINT defCodePage = GetDefaultCodePage();
-
-	if (defCodePage == CP_ARABIC)
+	// Use the computed direction for this text instance, not the global UI direction
+	if (m_computedRTL)
 	{
 		switch (m_hAlign)
 		{
@@ -504,11 +766,11 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 
 			case HORIZONTAL_ALIGN_CENTER:
 				fStanX -= float(m_textWidth / 2);
-				break;	
+				break;
 		}
 	}
 	else
-	{	
+	{
 		switch (m_hAlign)
 		{
 			case HORIZONTAL_ALIGN_RIGHT:
@@ -517,7 +779,7 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 
 			case HORIZONTAL_ALIGN_CENTER:
 				fStanX -= float(m_textWidth / 2);
-				break;	
+				break;
 		}
 	}
 
@@ -573,9 +835,8 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 		akVertex[2].z=m_v3Position.z;
 		akVertex[3].z=m_v3Position.z;
 
-		CGraphicFontTexture::TCharacterInfomation* pCurCharInfo;		
+		CGraphicFontTexture::TCharacterInfomation* pCurCharInfo;
 
-		// 테두리
 		if (m_isOutline)
 		{
 			fCurX=fStanX;
@@ -591,7 +852,6 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				fFontHeight=float(pCurCharInfo->height);
 				fFontAdvance=float(pCurCharInfo->advance);
 
-				// NOTE : 폰트 출력에 Width 제한을 둡니다. - [levites]
 				if ((fCurX+fFontWidth)-m_v3Position.x > m_fLimitWidth)
 				{
 					if (m_isMultiLine)
@@ -633,9 +893,8 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 
 				akVertex[3].color = akVertex[2].color = akVertex[1].color = akVertex[0].color = m_dwOutLineColor;
 
-				
 				float feather = 0.0f; // m_fFontFeather
-				
+
 				akVertex[0].y=fFontSy-feather;
 				akVertex[1].y=fFontEy+feather;
 				akVertex[2].y=fFontSy-feather;
@@ -648,7 +907,6 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				akVertex[3].x=fFontEx-fFontHalfWeight+feather;
 
 				vtxBatch.insert(vtxBatch.end(), std::begin(akVertex), std::end(akVertex));
-				
 
 				// 오른
 				akVertex[0].x=fFontSx+fFontHalfWeight-feather;
@@ -657,12 +915,12 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				akVertex[3].x=fFontEx+fFontHalfWeight+feather;
 
 				vtxBatch.insert(vtxBatch.end(), std::begin(akVertex), std::end(akVertex));
-				
+
 				akVertex[0].x=fFontSx-feather;
 				akVertex[1].x=fFontSx-feather;
 				akVertex[2].x=fFontEx+feather;
 				akVertex[3].x=fFontEx+feather;
-				
+
 				// 위
 				akVertex[0].y=fFontSy-fFontHalfWeight-feather;
 				akVertex[1].y=fFontEy-fFontHalfWeight+feather;
@@ -670,7 +928,7 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				akVertex[3].y=fFontEy-fFontHalfWeight+feather;
 
 				vtxBatch.insert(vtxBatch.end(), std::begin(akVertex), std::end(akVertex));
-				
+
 				// 아래
 				akVertex[0].y=fFontSy+fFontHalfWeight-feather;
 				akVertex[1].y=fFontEy+fFontHalfWeight+feather;
@@ -678,12 +936,11 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				akVertex[3].y=fFontEy+fFontHalfWeight+feather;
 
 				vtxBatch.insert(vtxBatch.end(), std::begin(akVertex), std::end(akVertex));
-				
+
 				fCurX += fFontAdvance;
 			}
 		}
 
-		// 메인 폰트
 		fCurX=fStanX;
 		fCurY=fStanY;
 		fFontMaxHeight=0.0f;
@@ -694,10 +951,9 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 
 			fFontWidth=float(pCurCharInfo->width);
 			fFontHeight=float(pCurCharInfo->height);
-			fFontMaxHeight=std::max(fFontHeight, (float)pCurCharInfo->height);
+			fFontMaxHeight=(std::max)(fFontHeight, (float)pCurCharInfo->height);
 			fFontAdvance=float(pCurCharInfo->advance);
 
-			// NOTE : 폰트 출력에 Width 제한을 둡니다. - [levites]
 			if ((fCurX+fFontWidth)-m_v3Position.x > m_fLimitWidth)
 			{
 				if (m_isMultiLine)
@@ -756,12 +1012,116 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 		}
 	}
 
+	// --- Selection background (Ctrl+A / shift-select) ---
+	if (m_isCursor && CIME::ms_bCaptureInput)
+	{
+		int selBegin = CIME::GetSelBegin();
+		int selEnd = CIME::GetSelEnd();
+
+		if (selBegin > selEnd) std::swap(selBegin, selEnd);
+
+		if (selBegin != selEnd)
+		{
+			float sx, sy, ex, ey;
+
+			// Convert logical selection positions to visual positions (handles tags)
+			int visualSelBegin = selBegin;
+			int visualSelEnd = selEnd;
+			if (!m_logicalToVisualPos.empty())
+			{
+				if (selBegin >= 0 && selBegin < (int)m_logicalToVisualPos.size())
+					visualSelBegin = m_logicalToVisualPos[selBegin];
+				if (selEnd >= 0 && selEnd < (int)m_logicalToVisualPos.size())
+					visualSelEnd = m_logicalToVisualPos[selEnd];
+			}
+
+			__GetTextPos(visualSelBegin, &sx, &sy);
+			__GetTextPos(visualSelEnd,   &ex, &sy);
+
+			// Handle RTL - use the computed direction for this text instance
+			if (m_computedRTL)
+			{
+				sx += m_v3Position.x - m_textWidth;
+				ex += m_v3Position.x - m_textWidth;
+			}
+			else
+			{
+				sx += m_v3Position.x;
+				ex += m_v3Position.x;
+			}
+
+			// Apply vertical alignment
+			float top = m_v3Position.y;
+			float bot = m_v3Position.y + m_textHeight;
+
+			switch (m_vAlign)
+			{
+				case VERTICAL_ALIGN_BOTTOM:
+					top -= m_textHeight;
+					bot -= m_textHeight;
+					break;
+
+				case VERTICAL_ALIGN_CENTER:
+					top -= float(m_textHeight) / 2.0f;
+					bot -= float(m_textHeight) / 2.0f;
+					break;
+			}
+
+			TPDTVertex vertices[4];
+			vertices[0].diffuse = 0x80339CFF;
+			vertices[1].diffuse = 0x80339CFF;
+			vertices[2].diffuse = 0x80339CFF;
+			vertices[3].diffuse = 0x80339CFF;
+
+			vertices[0].position = TPosition(sx, top, 0.0f);
+			vertices[1].position = TPosition(ex, top, 0.0f);
+			vertices[2].position = TPosition(sx, bot, 0.0f);
+			vertices[3].position = TPosition(ex, bot, 0.0f);
+
+			STATEMANAGER.SetTexture(0, NULL);
+			CGraphicBase::SetDefaultIndexBuffer(CGraphicBase::DEFAULT_IB_FILL_RECT);
+			if (CGraphicBase::SetPDTStream(vertices, 4))
+				STATEMANAGER.DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 4, 0, 2);
+		}
+	}
+
 	for (const auto& [pTexture, vtxBatch] : s_vtxBatches) {
 		if (vtxBatch.empty())
 			continue;
 
 		STATEMANAGER.SetTexture(0, pTexture);
-		STATEMANAGER.DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, vtxBatch.size() - 2, vtxBatch.data(), sizeof(SVertex));
+
+		// Each character is 4 vertices forming a quad (0=TL, 1=BL, 2=TR, 3=BR)
+		// We need to convert quads to triangle list format
+		// Triangle list needs 6 vertices per quad: v0,v1,v2, v2,v1,v3
+
+		size_t numQuads = vtxBatch.size() / 4;
+		std::vector<SVertex> triangleVerts;
+		triangleVerts.reserve(numQuads * 6);
+
+		for (size_t i = 0; i < numQuads; ++i)
+		{
+			size_t baseIdx = i * 4;
+			const SVertex& v0 = vtxBatch[baseIdx + 0]; // TL
+			const SVertex& v1 = vtxBatch[baseIdx + 1]; // BL
+			const SVertex& v2 = vtxBatch[baseIdx + 2]; // TR
+			const SVertex& v3 = vtxBatch[baseIdx + 3]; // BR
+
+			// First triangle: TL, BL, TR
+			triangleVerts.push_back(v0);
+			triangleVerts.push_back(v1);
+			triangleVerts.push_back(v2);
+
+			// Second triangle: TR, BL, BR
+			triangleVerts.push_back(v2);
+			triangleVerts.push_back(v1);
+			triangleVerts.push_back(v3);
+		}
+
+		if (!triangleVerts.empty())
+		{
+			STATEMANAGER.DrawPrimitiveUP(D3DPT_TRIANGLELIST, triangleVerts.size() / 3, triangleVerts.data(), sizeof(SVertex));
+		}
 	}
 
 	if (m_isCursor)
@@ -773,13 +1133,24 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 		int curpos = CIME::GetCurPos();
 		int compend = curpos + CIME::GetCompLen();
 
-		__GetTextPos(curpos, &sx, &sy);
+		// Convert logical cursor position to visual position (handles tags)
+		int visualCurpos = curpos;
+		int visualCompend = compend;
+		if (!m_logicalToVisualPos.empty())
+		{
+			if (curpos >= 0 && curpos < (int)m_logicalToVisualPos.size())
+				visualCurpos = m_logicalToVisualPos[curpos];
+			if (compend >= 0 && compend < (int)m_logicalToVisualPos.size())
+				visualCompend = m_logicalToVisualPos[compend];
+		}
+
+		__GetTextPos(visualCurpos, &sx, &sy);
 
 		// If Composition
-		if(curpos<compend)
+		if(visualCurpos<visualCompend)
 		{
 			diffuse = 0x7fffffff;
-			__GetTextPos(compend, &ex, &sy);
+			__GetTextPos(visualCompend, &ex, &sy);
 		}
 		else
 		{
@@ -788,21 +1159,21 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 		}
 
 		// FOR_ARABIC_ALIGN
-		if (defCodePage == CP_ARABIC)
+		// Use the computed direction for this text instance, not the global UI direction
+		if (m_computedRTL)
 		{
 			sx += m_v3Position.x - m_textWidth;
 			ex += m_v3Position.x - m_textWidth;
-			sy += m_v3Position.y;			
-			ey = sy + m_textHeight;
+			sy += m_v3Position.y;
 		}
 		else
 		{
 			sx += m_v3Position.x;
 			sy += m_v3Position.y;
 			ex += m_v3Position.x;
-			ey = sy + m_textHeight;
 		}
 
+		// Apply vertical alignment adjustment BEFORE calculating ey
 		switch (m_vAlign)
 		{
 			case VERTICAL_ALIGN_BOTTOM:
@@ -812,10 +1183,10 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 			case VERTICAL_ALIGN_CENTER:
 				sy -= float(m_textHeight) / 2.0f;
 				break;
-		}		
-		// 최적화 사항
-		// 같은텍스쳐를 사용한다면... STRIP을 구성하고, 텍스쳐가 변경되거나 끝나면 DrawPrimitive를 호출해
-		// 최대한 숫자를 줄이도록하자!
+		}
+
+		// NOW calculate ey after sy has been adjusted
+		ey = sy + m_textHeight;
 
 		TPDTVertex vertices[4];
 		vertices[0].diffuse = diffuse;
@@ -829,8 +1200,6 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 
 		STATEMANAGER.SetTexture(0, NULL);
 
-
-		// 2004.11.18.myevan.DrawIndexPrimitiveUP -> DynamicVertexBuffer
 		CGraphicBase::SetDefaultIndexBuffer(CGraphicBase::DEFAULT_IB_FILL_RECT);
 		if (CGraphicBase::SetPDTStream(vertices, 4))
 			STATEMANAGER.DrawIndexedPrimitive(D3DPT_TRIANGLELIST, 0, 4, 0, 2);
@@ -838,7 +1207,7 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 		int ulbegin = CIME::GetULBegin();
 		int ulend = CIME::GetULEnd();
 
-		if(ulbegin < ulend)
+		if (ulbegin < ulend)
 		{
 			__GetTextPos(curpos+ulbegin, &sx, &sy);
 			__GetTextPos(curpos+ulend, &ex, &sy);
@@ -858,7 +1227,7 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 			vertices[3].position = TPosition(ex, ey, 0.0f);
 
 			STATEMANAGER.DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, 4, 2, c_FillRectIndices, D3DFMT_INDEX16, vertices, sizeof(TPDTVertex));
-		}		
+		}
 	}
 
 	STATEMANAGER.RestoreRenderState(D3DRS_SRCBLEND);
@@ -867,17 +1236,14 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 	STATEMANAGER.SetRenderState(D3DRS_FOGENABLE, dwFogEnable);
 	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, dwLighting);
 
-	//금강경 링크 띄워주는 부분.
 	if (m_hyperlinkVector.size() != 0)
 	{
-		int lx = gs_mx - m_v3Position.x;
-		int ly = gs_my - m_v3Position.y;
+		// FOR_ARABIC_ALIGN: RTL text is drawn with offset (m_v3Position.x - m_textWidth)
+		// Use the computed direction for this text instance, not the global UI direction
+		int textOffsetX = m_computedRTL ? (int)(m_v3Position.x - m_textWidth) : (int)m_v3Position.x;
 
-		//아랍은 좌표 부호를 바꿔준다.
-		if (GetDefaultCodePage() == CP_ARABIC) {
-			lx = -lx;
-			ly = -ly + m_textHeight;
-		}
+		int lx = gs_mx - textOffsetX;
+		int ly = gs_my - (int)m_v3Position.y;
 
 		if (lx >= 0 && ly >= 0 && lx < m_textWidth && ly < m_textHeight)
 		{
@@ -889,10 +1255,6 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				if (lx >= link.sx && lx < link.ex)
 				{
 					gs_hyperlinkText = link.text;
-					/*
-					OutputDebugStringW(link.text.c_str());
-					OutputDebugStringW(L"\n");
-					*/
 					break;
 				}
 			}
@@ -1045,6 +1407,15 @@ void CGraphicTextInstance::SetTextPointer(CGraphicText* pText)
 	m_roText = pText;
 }
 
+void CGraphicTextInstance::SetTextDirection(ETextDirection dir)
+{
+	if (m_direction == dir)
+		return;
+
+	m_direction = dir;
+	m_isUpdate = false;
+}
+
 const std::string & CGraphicTextInstance::GetValueStringReference()
 {
 	return m_stText;
@@ -1086,17 +1457,45 @@ void CGraphicTextInstance::GetTextSize(int* pRetWidth, int* pRetHeight)
 
 int CGraphicTextInstance::PixelPositionToCharacterPosition(int iPixelPosition)
 {
+	// Clamp to valid range [0, textWidth]
+	int adjustedPixelPos = iPixelPosition;
+	if (adjustedPixelPos < 0)
+		adjustedPixelPos = 0;
+	if (adjustedPixelPos > m_textWidth)
+		adjustedPixelPos = m_textWidth;
+
+	// RTL: interpret click from right edge of rendered text
+	if (m_computedRTL)
+		adjustedPixelPos = m_textWidth - adjustedPixelPos;
+
 	int icurPosition = 0;
+	int visualPos = -1;
+
 	for (int i = 0; i < (int)m_pCharInfoVector.size(); ++i)
 	{
 		CGraphicFontTexture::TCharacterInfomation* pCurCharInfo = m_pCharInfoVector[i];
-		icurPosition += pCurCharInfo->width;
 
-		if (iPixelPosition < icurPosition)
-			return i;
+		// Use advance instead of width (width is not reliable for cursor hit-testing)
+		int adv = pCurCharInfo->advance;
+		if (adv <= 0)
+			adv = pCurCharInfo->width;
+
+		icurPosition += adv;
+
+		if (adjustedPixelPos < icurPosition)
+		{
+			visualPos = i;
+			break;
+		}
 	}
 
-	return -1;
+	if (visualPos < 0)
+		visualPos = (int)m_pCharInfoVector.size();
+
+	if (!m_visualToLogicalPos.empty() && visualPos >= 0 && visualPos < (int)m_visualToLogicalPos.size())
+		return m_visualToLogicalPos[visualPos];
+
+	return visualPos;
 }
 
 int CGraphicTextInstance::GetHorizontalAlign()
@@ -1112,7 +1511,7 @@ void CGraphicTextInstance::__Initialize()
 	m_vAlign = VERTICAL_ALIGN_TOP;
 
 	m_iMax = 0;
-	m_fLimitWidth = 1600.0f; // NOTE : 해상도의 최대치. 이보다 길게 쓸 일이 있을까? - [levites]
+	m_fLimitWidth = 1600.0f;
 
 	m_isCursor = false;
 	m_isSecret = false;
@@ -1122,6 +1521,10 @@ void CGraphicTextInstance::__Initialize()
 	m_fFontFeather = c_fFontFeather;
 
 	m_isUpdate = false;
+	// Use Auto direction for input fields - they should auto-detect based on content
+	// Only chat messages should be explicitly set to RTL
+	m_direction = ETextDirection::Auto;
+	m_computedRTL = false;
 
 	m_textWidth = 0;
 	m_textHeight = 0;
@@ -1137,6 +1540,8 @@ void CGraphicTextInstance::Destroy()
 	m_pCharInfoVector.clear();
 	m_dwColorInfoVector.clear();
 	m_hyperlinkVector.clear();
+	m_logicalToVisualPos.clear();
+	m_visualToLogicalPos.clear();
 
 	__Initialize();
 }

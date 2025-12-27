@@ -1,7 +1,6 @@
 #include "StdAfx.h"
 #include "PythonNetworkStream.h"
 #include "Packet.h"
-#include "Test.h"
 #include "AccountConnector.h"
 
 // Login ---------------------------------------------------------------------------
@@ -69,7 +68,7 @@ void CPythonNetworkStream::LoginPhase()
 
 void CPythonNetworkStream::SetLoginPhase()
 {
-	const char* key = LocaleService_GetSecurityKey();
+	const char* key = GetSecurityKey();
 #ifndef _IMPROVED_PACKET_ENCRYPTION_
 	SetSecurityMode(true, key);
 #endif
@@ -81,7 +80,7 @@ void CPythonNetworkStream::SetLoginPhase()
 	Tracen("## Network - Login Phase ##");
 	Tracen("");
 
-	m_strPhase = "Login";	
+	m_strPhase = "Login";
 
 	m_phaseProcessFunc.Set(this, &CPythonNetworkStream::LoginPhase);
 	m_phaseLeaveFunc.Set(this, &CPythonNetworkStream::__LeaveLoginPhase);
@@ -133,8 +132,8 @@ bool CPythonNetworkStream::__RecvLoginSuccessPacket3()
 	TPacketGCLoginSuccess3 kPacketLoginSuccess;
 
 	if (!Recv(sizeof(kPacketLoginSuccess), &kPacketLoginSuccess))
-		return false;	
-	
+		return false;
+
 	for (int i = 0; i<PLAYER_PER_ACCOUNT3; ++i)
 	{
 		m_akSimplePlayerInfo[i]=kPacketLoginSuccess.akSimplePlayerInformation[i];
@@ -161,8 +160,8 @@ bool CPythonNetworkStream::__RecvLoginSuccessPacket4()
 	TPacketGCLoginSuccess4 kPacketLoginSuccess;
 
 	if (!Recv(sizeof(kPacketLoginSuccess), &kPacketLoginSuccess))
-		return false;	
-	
+		return false;
+
 	for (int i = 0; i<PLAYER_PER_ACCOUNT4; ++i)
 	{
 		m_akSimplePlayerInfo[i]=kPacketLoginSuccess.akSimplePlayerInformation[i];
@@ -171,19 +170,18 @@ bool CPythonNetworkStream::__RecvLoginSuccessPacket4()
 	}
 
 	m_kMarkAuth.m_dwHandle=kPacketLoginSuccess.handle;
-	m_kMarkAuth.m_dwRandomKey=kPacketLoginSuccess.random_key;	
+	m_kMarkAuth.m_dwRandomKey=kPacketLoginSuccess.random_key;
 
 	if (__DirectEnterMode_IsSet())
 	{
 	}
 	else
 	{
-		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_SELECT], "Refresh", Py_BuildValue("()"));		
+		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_SELECT], "Refresh", Py_BuildValue("()"));
 	}
 
 	return true;
 }
-
 
 void CPythonNetworkStream::OnConnectFailure()
 {
@@ -196,7 +194,6 @@ void CPythonNetworkStream::OnConnectFailure()
 		PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_LOGIN], "OnConnectFailure", Py_BuildValue("()"));	
 	}
 }
-
 
 bool CPythonNetworkStream::__RecvLoginFailurePacket()
 {

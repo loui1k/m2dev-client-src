@@ -35,18 +35,8 @@ bool CAccountConnector::Connect(const char * c_szAddr, int iPort, const char * c
 
 	m_strAddr = c_szAddr;
 	m_iPort = iPort;
-
 	__OfflineState_Set();
-
-	// CHINA_CRYPT_KEY
-	if (LocaleService_IsYMIR())
-	{
-	}	
-	else
-	{
-		__BuildClientKey_20050304Myevan();		
-	}
-	// END_OF_CHINA_CRYPT_KEY
+	__BuildClientKey_20050304Myevan();
 
 	return CNetworkStream::Connect(c_szAccountAddr, iAccountPort);
 }
@@ -173,7 +163,7 @@ bool CAccountConnector::__AuthState_RecvPhase()
 	else if (kPacketPhase.phase == PHASE_AUTH)
 	{
 #ifndef _IMPROVED_PACKET_ENCRYPTION_
-		const char* key = LocaleService_GetSecurityKey();
+		const char* key = GetSecurityKey();
 		SetSecurityMode(true, key);
 #endif
 

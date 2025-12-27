@@ -1822,6 +1822,19 @@ PyObject * wndTextSetLimitWidth(PyObject * poSelf, PyObject * poArgs)
 	((UI::CTextLine*)pWindow)->SetLimitWidth(fWidth);
 	return Py_BuildNone();
 }
+PyObject * wndTextSetBaseDirection(PyObject * poSelf, PyObject * poArgs)
+{
+	UI::CWindow * pWindow;
+	if (!PyTuple_GetWindow(poArgs, 0, &pWindow))
+		return Py_BuildException();
+
+	int iDir;
+	if (!PyTuple_GetInteger(poArgs, 1, &iDir))
+		return Py_BuildException();
+
+	((UI::CTextLine*)pWindow)->SetBaseDirection(iDir);
+	return Py_BuildNone();
+}
 PyObject * wndTextSetText(PyObject * poSelf, PyObject * poArgs)
 {
 	UI::CWindow * pWindow;
@@ -2549,6 +2562,7 @@ void initwndMgr()
 		{ "SetFontName",				wndTextSetFontName,					METH_VARARGS },
 		{ "SetFontColor",				wndTextSetFontColor,				METH_VARARGS },
 		{ "SetLimitWidth",				wndTextSetLimitWidth,				METH_VARARGS },
+		{ "SetBaseDirection",			wndTextSetBaseDirection,			METH_VARARGS },
 		{ "GetText",					wndTextGetText,						METH_VARARGS },
 		{ "GetTextSize",				wndTextGetTextSize,					METH_VARARGS },
 		{ "ShowCursor",					wndTextShowCursor,					METH_VARARGS },
@@ -2630,6 +2644,10 @@ void initwndMgr()
 	PyModule_AddIntConstant(poModule, "TEXT_VERTICAL_ALIGN_TOP",		CGraphicTextInstance::VERTICAL_ALIGN_TOP);
 	PyModule_AddIntConstant(poModule, "TEXT_VERTICAL_ALIGN_BOTTOM",		CGraphicTextInstance::VERTICAL_ALIGN_BOTTOM);
 	PyModule_AddIntConstant(poModule, "TEXT_VERTICAL_ALIGN_CENTER",		CGraphicTextInstance::VERTICAL_ALIGN_CENTER);
+
+	PyModule_AddIntConstant(poModule, "TEXT_BASEDIR_AUTO", 0);
+	PyModule_AddIntConstant(poModule, "TEXT_BASEDIR_LTR",  1);
+	PyModule_AddIntConstant(poModule, "TEXT_BASEDIR_RTL",  2);
 
 	PyModule_AddIntConstant(poModule, "HORIZONTAL_ALIGN_LEFT",			UI::CWindow::HORIZONTAL_ALIGN_LEFT);
 	PyModule_AddIntConstant(poModule, "HORIZONTAL_ALIGN_CENTER",		UI::CWindow::HORIZONTAL_ALIGN_CENTER);

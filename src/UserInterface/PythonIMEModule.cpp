@@ -57,19 +57,10 @@ PyObject* imeSetText(PyObject* poSelf, PyObject* poArgs)
 }
 
 PyObject* imeGetText(PyObject* poSelf, PyObject* poArgs)
-{	
-	int bCodePage;
-	if (!PyTuple_GetInteger(poArgs, 0, &bCodePage))
-		bCodePage = 0;
-
-	std::string strText;
-	CPythonIME::Instance().GetText(strText, bCodePage ? true : false);
-	return Py_BuildValue("s", strText.c_str());
-}
-
-PyObject* imeGetCodePage(PyObject* poSelf, PyObject* poArgs)
 {
-	return Py_BuildValue("i", CPythonIME::Instance().GetCodePage());
+	std::string strText;
+	CPythonIME::Instance().GetText(strText);
+	return Py_BuildValue("s", strText.c_str());
 }
 
 PyObject* imeGetCandidateCount(PyObject* poSelf, PyObject* poArgs)
@@ -210,6 +201,25 @@ PyObject* imePasteTextFromClipBoard(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildNone();
 }
 
+PyObject* imeSelectAll(PyObject* poSelf, PyObject* poArgs)
+{
+	CPythonIME::Instance().SelectAll();
+	return Py_BuildNone();
+}
+
+PyObject* imeCopySelectionToClipboard(PyObject* poSelf, PyObject* poArgs)
+{
+	CPythonIME::Instance().CopySelectionToClipboard();
+	return Py_BuildNone();
+}
+
+PyObject* imeCutSelection(PyObject* poSelf, PyObject* poArgs)
+{
+	CPythonIME::Instance().CopySelectionToClipboard();
+	CPythonIME::Instance().DeleteSelection();
+	return Py_BuildNone();
+}
+
 PyObject* imeEnablePaste(PyObject* poSelf, PyObject* poArgs)
 {
 	int	iFlag;
@@ -254,7 +264,6 @@ void initime()
 		{ "SetUserMax",				imeSetUserMax,				METH_VARARGS },
 		{ "SetText",				imeSetText,					METH_VARARGS },
 		{ "GetText",				imeGetText,					METH_VARARGS },
-		{ "GetCodePage",			imeGetCodePage,				METH_VARARGS },
 		{ "GetCandidateCount",		imeGetCandidateCount,		METH_VARARGS },
 		{ "GetCandidate",			imeGetCandidate,			METH_VARARGS },
 		{ "GetCandidateSelection",	imeGetCandidateSelection,	METH_VARARGS },
@@ -280,6 +289,9 @@ void initime()
 		{ "PasteBackspace",			imePasteBackspace,			METH_VARARGS },
 		{ "PasteReturn",			imePasteReturn,				METH_VARARGS },
 		{ "PasteTextFromClipBoard",	imePasteTextFromClipBoard,	METH_VARARGS },
+		{ "SelectAll",				imeSelectAll,				METH_VARARGS },
+		{ "CutSelection",			imeCutSelection,			METH_VARARGS },
+		{ "CopySelection",			imeCopySelectionToClipboard,METH_VARARGS },
 		{ "EnablePaste",			imeEnablePaste,				METH_VARARGS },
 
 		{ NULL,						NULL,						NULL		 },

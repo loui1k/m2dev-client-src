@@ -5,6 +5,8 @@
 #include "PythonCharacterManager.h"
 #include "EterBase/Timer.h"
 
+#include <utf8.h>
+
 int CPythonChat::TChatSet::ms_iChatModeSize = CHAT_TYPE_MAX_NUM;
 
 const float c_fStartDisappearingTime = 5.0f;
@@ -135,7 +137,13 @@ void CPythonChat::UpdateViewMode(DWORD dwID)
 		--iLineIndex;
 
 		pChatLine->Instance.SetPosition(pChatSet->m_ix, pChatSet->m_iy + iHeight);
-		pChatLine->Instance.SetColor(rColor);
+		pChatLine->Instance.SetColor(pChatLine->GetColorRef(dwID));
+
+		if (pChatSet->m_iAlign == 1)
+			pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::RTL);
+		else
+			pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::LTR);
+
 		pChatLine->Instance.Update();
 	}
 }
@@ -146,7 +154,7 @@ void CPythonChat::UpdateEditMode(DWORD dwID)
 	if (!pChatSet)
 		return;
 
-	const int c_iAlphaLine = std::max(0, GetVisibleLineCount(dwID) - GetEditableLineCount(dwID) + 2);
+	const int c_iAlphaLine = (std::max)(0, GetVisibleLineCount(dwID) - GetEditableLineCount(dwID) + 2);
 
 	int iLineIndex = 0;
 	float fAlpha = 0.0f;
@@ -175,8 +183,15 @@ void CPythonChat::UpdateEditMode(DWORD dwID)
 		}
 
 		iHeight += pChatSet->m_iStep;
+
 		pChatLine->Instance.SetPosition(pChatSet->m_ix, pChatSet->m_iy + iHeight);
-		pChatLine->Instance.SetColor(rColor);
+		pChatLine->Instance.SetColor(pChatLine->GetColorRef(dwID));
+
+		if (pChatSet->m_iAlign == 1)
+			pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::RTL);
+		else
+			pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::LTR);
+
 		pChatLine->Instance.Update();
 	}
 }
@@ -195,8 +210,15 @@ void CPythonChat::UpdateLogMode(DWORD dwID)
 		TChatLine * pChatLine = (*itor);
 
 		iHeight -= pChatSet->m_iStep;
+
 		pChatLine->Instance.SetPosition(pChatSet->m_ix, pChatSet->m_iy + iHeight);
 		pChatLine->Instance.SetColor(pChatLine->GetColorRef(dwID));
+
+		if (pChatSet->m_iAlign == 1)
+			pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::RTL);
+		else
+			pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::LTR);
+
 		pChatLine->Instance.Update();
 	}
 }
@@ -251,7 +273,6 @@ void CPythonChat::Render(DWORD dwID)
 	}
 }
 
-
 void CPythonChat::SetBoardState(DWORD dwID, int iState)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -261,6 +282,7 @@ void CPythonChat::SetBoardState(DWORD dwID, int iState)
 	pChatSet->m_iBoardState = iState;
 	ArrangeShowingChat(dwID);
 }
+
 void CPythonChat::SetPosition(DWORD dwID, int ix, int iy)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -270,6 +292,25 @@ void CPythonChat::SetPosition(DWORD dwID, int ix, int iy)
 	pChatSet->m_ix = ix;
 	pChatSet->m_iy = iy;
 }
+
+void CPythonChat::SetAlign(DWORD dwID, int iAlign)
+{
+	TChatSet* pChatSet = GetChatSetPtr(dwID);
+	if (!pChatSet)
+		return;
+
+	pChatSet->m_iAlign = (iAlign != 0) ? 1 : 0;
+}
+
+void CPythonChat::SetWidth(DWORD dwID, int iWidth)
+{
+	TChatSet* pChatSet = GetChatSetPtr(dwID);
+	if (!pChatSet)
+		return;
+
+	pChatSet->m_iWidth = iWidth;
+}
+
 void CPythonChat::SetHeight(DWORD dwID, int iHeight)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -278,6 +319,7 @@ void CPythonChat::SetHeight(DWORD dwID, int iHeight)
 
 	pChatSet->m_iHeight = iHeight;
 }
+
 void CPythonChat::SetStep(DWORD dwID, int iStep)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -286,6 +328,7 @@ void CPythonChat::SetStep(DWORD dwID, int iStep)
 
 	pChatSet->m_iStep = iStep;
 }
+
 void CPythonChat::ToggleChatMode(DWORD dwID, int iMode)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -296,6 +339,7 @@ void CPythonChat::ToggleChatMode(DWORD dwID, int iMode)
 // 	Tracef("ToggleChatMode : %d\n", iMode);
 	ArrangeShowingChat(dwID);
 }
+
 void CPythonChat::EnableChatMode(DWORD dwID, int iMode)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -306,6 +350,7 @@ void CPythonChat::EnableChatMode(DWORD dwID, int iMode)
 // 	Tracef("EnableChatMode : %d\n", iMode);
 	ArrangeShowingChat(dwID);
 }
+
 void CPythonChat::DisableChatMode(DWORD dwID, int iMode)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -316,6 +361,7 @@ void CPythonChat::DisableChatMode(DWORD dwID, int iMode)
 // 	Tracef("DisableChatMode : %d\n", iMode);
 	ArrangeShowingChat(dwID);
 }
+
 void CPythonChat::SetEndPos(DWORD dwID, float fPos)
 {
 	TChatSet * pChatSet = GetChatSetPtr(dwID);
@@ -452,7 +498,20 @@ void CPythonChat::AppendChat(int iType, const char * c_szChat)
 	IAbstractApplication& rApp=IAbstractApplication::GetSingleton();
 	SChatLine * pChatLine = SChatLine::New();
 	pChatLine->iType = iType;
+
+	// Pass chat text as-is to BiDi algorithm
+	// BuildVisualBidiText_Tagless will detect chat format and handle reordering
 	pChatLine->Instance.SetValue(c_szChat);
+
+	if (IsRTL())
+	{
+		// RTL mode: BiDi will handle chat format detection and reordering
+		pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::RTL);
+	}
+	else
+	{
+		pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::LTR);
+	}
 
 	// DEFAULT_FONT
 	pChatLine->Instance.SetTextPointer(pkDefaultFont);
@@ -699,24 +758,29 @@ void CWhisper::SetBoxSize(float fWidth, float fHeight)
 
 void CWhisper::AppendChat(int iType, const char * c_szChat)
 {
-	// DEFAULT_FONT
-	//static CResource * s_pResource = CResourceManager::Instance().GetResourcePointer(g_strDefaultFontName.c_str());
-
-#if defined(LOCALE_SERVICE_YMIR) || defined(LOCALE_SERVICE_JAPAN) || defined(LOCALE_SERVICE_HONGKONG) || defined(LOCALE_SERVICE_TAIWAN) || defined(LOCALE_SERVICE_NEWCIBN)
-	CGraphicText* pkDefaultFont = static_cast<CGraphicText*>(DefaultFont_GetResource());
-#else
 	CGraphicText* pkDefaultFont = (iType == CPythonChat::WHISPER_TYPE_GM) ? static_cast<CGraphicText*>(DefaultItalicFont_GetResource()) : static_cast<CGraphicText*>(DefaultFont_GetResource());
-#endif
 
 	if (!pkDefaultFont)
 	{
 		TraceError("CWhisper::AppendChat - CANNOT_FIND_DEFAULT_FONT");
 		return;
 	}
-	// END_OF_DEFAULT_FONT
 
 	SChatLine * pChatLine = SChatLine::New();
+
+	// Pass chat text as-is to BiDi algorithm
+	// BuildVisualBidiText_Tagless will detect chat format and handle reordering
 	pChatLine->Instance.SetValue(c_szChat);
+
+	if (IsRTL())
+	{
+		// RTL mode: BiDi will handle chat format detection and reordering
+		pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::RTL);
+	}
+	else
+	{
+		pChatLine->Instance.SetTextDirection(CGraphicTextInstance::ETextDirection::LTR);
+	}
 
 	// DEFAULT_FONT
 	pChatLine->Instance.SetTextPointer(pkDefaultFont);

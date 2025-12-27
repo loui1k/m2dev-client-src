@@ -2,6 +2,7 @@
 #include "MsWindow.h"
 
 #include <windowsx.h>
+#include <utf8.h>
 
 CMSWindow::TWindowClassSet CMSWindow::ms_stWCSet;
 HINSTANCE CMSWindow::ms_hInstance = NULL;
@@ -61,27 +62,32 @@ void CMSWindow::Destroy()
 
 bool CMSWindow::Create(const char* c_szName, int brush, DWORD cs, DWORD ws, HICON hIcon, int iCursorResource)
 {
-	//assert(ms_hInstance != NULL);
 	Destroy();
-		
-	const char* c_szClassName = RegisterWindowClass(cs, brush, MSWindowProcedure, hIcon, iCursorResource);
 
-	m_hWnd = CreateWindow(
-						c_szClassName,
-						c_szName,
-						ws, 
-						0, 0, 0, 0, 
-						NULL,
-						NULL, 
-						ms_hInstance,
-						NULL);
+	const wchar_t* wClassName =
+		RegisterWindowClass(cs, brush, MSWindowProcedure, hIcon, iCursorResource);
+
+	if (!wClassName)
+		return false;
+
+	// Window title is UTF-8 → convert
+	std::wstring wWindowName = Utf8ToWide(c_szName ? c_szName : "");
+
+	m_hWnd = CreateWindowW(
+		wClassName,                 // already wide
+		wWindowName.c_str(),        // wide
+		ws,
+		0, 0, 0, 0,
+		nullptr,
+		nullptr,
+		ms_hInstance,
+		nullptr
+	);
 
 	if (!m_hWnd)
 		return false;
 
-	SetWindowLongPtr(m_hWnd, GWLP_USERDATA, (LONG_PTR)this);
-	//DestroyWindow(ImmGetDefaultIMEWnd(m_hWnd));
-
+	SetWindowLongPtrW(m_hWnd, GWLP_USERDATA, (LONG_PTR)this);
 	return true;
 }
 
@@ -197,7 +203,11 @@ void CMSWindow::AdjustSize(int width, int height)
 
 void CMSWindow::SetText(const char* c_szText)
 {
-	SetWindowText(m_hWnd, c_szText);
+	if (!m_hWnd)
+		return;
+
+	std::wstring wText = Utf8ToWide(c_szText ? c_szText : "");
+	SetWindowTextW(m_hWnd, wText.c_str());
 }
 
 void CMSWindow::SetSize(int width, int height)
@@ -205,37 +215,41 @@ void CMSWindow::SetSize(int width, int height)
 	SetWindowPos(m_hWnd, NULL, 0, 0, width, height, SWP_NOZORDER|SWP_NOMOVE);
 }
 
-const char * CMSWindow::RegisterWindowClass(DWORD style, int brush, WNDPROC pfnWndProc, HICON hIcon, int iCursorResource)
+const wchar_t* CMSWindow::RegisterWindowClass(DWORD style, int brush, WNDPROC pfnWndProc, HICON hIcon, int iCursorResource)
 {
-	char szClassName[1024];
-	sprintf(szClassName, "eter - s%x:b%x:p:%x", style, brush, (DWORD) pfnWndProc);
+	wchar_t szClassName[1024];
+	swprintf_s(
+		szClassName,
+		L"eter - s%x:b%x:p:%p",
+		style,
+		brush,
+		pfnWndProc
+	);
 
-	TWindowClassSet::iterator f = ms_stWCSet.find((char*) szClassName);
+	// Use a set of std::wstring (NOT char*)
+	TWindowClassSet::iterator it = ms_stWCSet.find(szClassName);
+	if (it != ms_stWCSet.end())
+		return it->c_str();
 
-	if (f != ms_stWCSet.end())
-		return *f;
+	// Persist the string
+	std::wstring staticClassName = szClassName;
+	ms_stWCSet.insert(staticClassName);
 
-	const char* c_szStaticClassName = stl_static_string(szClassName).c_str();
+	WNDCLASSW wc{};
+	wc.style = style;
+	wc.lpfnWndProc = pfnWndProc;
+	wc.hCursor = LoadCursor(ms_hInstance, MAKEINTRESOURCE(iCursorResource));
+	wc.hIcon = hIcon ? hIcon : LoadIcon(ms_hInstance, IDI_APPLICATION);
+	wc.hbrBackground = (HBRUSH)GetStockObject(brush);
+	wc.hInstance = ms_hInstance;
+	wc.lpszClassName = staticClassName.c_str();
+	wc.lpszMenuName = nullptr;
 
-	ms_stWCSet.insert((char * const) c_szStaticClassName);
-	
-	WNDCLASS wc;
+	if (!RegisterClassW(&wc))
+		return nullptr;
 
-	wc.style			= 0;
-	wc.cbClsExtra		= 0;
-	wc.cbWndExtra		= 0;
-	wc.lpfnWndProc		= pfnWndProc;
-	wc.hCursor			= LoadCursor(ms_hInstance, MAKEINTRESOURCE(iCursorResource));
-	wc.hIcon			= hIcon ? hIcon : LoadIcon(ms_hInstance, IDI_APPLICATION);
-	wc.hbrBackground	= (HBRUSH) GetStockObject(brush);
-	wc.hInstance		= ms_hInstance;	
-	wc.lpszClassName	= c_szStaticClassName;
-	wc.lpszMenuName		= "";
-
-	if (!RegisterClass(&wc)) 
-		return "";
-
-	return c_szStaticClassName;
+	// Return pointer stable inside the set
+	return ms_stWCSet.find(staticClassName)->c_str();
 }
 
 CMSWindow::CMSWindow()

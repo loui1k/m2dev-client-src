@@ -372,15 +372,19 @@ HRESULT CMovieMan::RenderFileToMMStream(const char *cpFilename, IMultiMediaStrea
 	}
 
 	WCHAR wPath[MAX_PATH + 1];
-	MultiByteToWideChar(CP_ACP, 0, cpFilename, -1, wPath, MAX_PATH + 1);
+
+	int ok = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, cpFilename, -1, wPath, MAX_PATH + 1);
+	if (ok <= 0)
+		return E_FAIL;
+
 	//
 	WCHAR wsDir[MAX_PATH + 1];
 	::memset(wsDir, 0, sizeof(wsDir));
 	::GetCurrentDirectoryW( MAX_PATH, wsDir );
-	::wcsncat( wsDir, L"\\", sizeof(WCHAR)*1 );
-	::wcsncat( wsDir, wPath, sizeof(WCHAR)*::wcsnlen(wPath, MAX_PATH) );
+	wcscat_s(wsDir, MAX_PATH + 1, L"\\");
+	wcscat_s(wsDir, MAX_PATH + 1, wPath);
 	::memset(wPath, 0, sizeof(wPath));
-	::wcsncpy( wPath, wsDir, sizeof(WCHAR)*::wcsnlen(wsDir, MAX_PATH) );
+	wcsncpy_s(wPath, MAX_PATH + 1, wsDir, _TRUNCATE);
 	//
 
 	pAMStream->Initialize(STREAMTYPE_READ, AMMSF_NOGRAPHTHREAD, NULL);

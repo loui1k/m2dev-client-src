@@ -124,94 +124,72 @@ void CProperty::PutVector(const char * c_pszKey, const CTokenVector & c_rTokenVe
 
 void GetTimeString(char * str, time_t ct)
 {
-    struct tm tm;
-    tm = *localtime(&ct);
+	struct tm tm;
+	tm = *localtime(&ct);
 
-    _snprintf(str, 15, "%04d%02d%02d%02d%02d%02d",
-            tm.tm_year + 1900,
-            tm.tm_mon + 1,
-            tm.tm_mday,
-            tm.tm_hour,
-            tm.tm_min,
-            tm.tm_sec);
+	_snprintf(str, 15, "%04d%02d%02d%02d%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
 
 bool CProperty::ReadFromMemory(const void * c_pvData, int iLen, const char * c_pszFileName)
 {
-	const char * pcData = (const char *) c_pvData;
+	const char* pStart = (const char*)c_pvData;
+	const char* pcData = pStart;
 
 	if (*(DWORD *) pcData != MAKEFOURCC('Y', 'P', 'R', 'T'))
 		return false;
 
 	pcData += sizeof(DWORD);
 
-	if (*pcData != '\r' || *(pcData + 1) != '\n')
+
+	while (pcData < pStart + iLen && (*pcData == '\r' || *pcData == '\n' || *pcData == ' ' || *pcData == '\t'))
+		++pcData;
+
+
+	int textLen = iLen - int(pcData - pStart);
+	if (textLen <= 0)
 	{
-		TraceError("CProperty::ReadFromMemory: File format error after FourCC: %s\n", c_pszFileName);
+		TraceError("CProperty::ReadFromMemory: textLen <= 0 in %s\n", c_pszFileName);
 		return false;
 	}
-
-	pcData += 2;
 
 	CTokenVector stTokenVector;
-/*
-	char szTimeStamp[64];
-	memcpy(szTimeStamp, pcData, 14);
-	szTimeStamp[14] = '\0';
-	pcData += 14;
-
- 	if (*pcData != '\r' || *(pcData + 1) != '\n')
-	{
-		TraceError("CProperty::ReadFromMemory: File format error after TimeStamp: %s\n", c_pszFileName);
-		return false;
-	}
-
-	std::string m_stTimeStamp;
-	
-	m_stTimeStamp = szTimeStamp;
-
-	int iTimeStampLen = 14 + _snprintf(szTimeStamp + 14, 64 - 14, "%s", mc_pFileName);
-	m_dwCRC = GetCRC32(szTimeStamp, iTimeStampLen);
-
-	char tmp[64];
-	sprintf(tmp, "%u", m_dwCRC);
-	m_stCRC.assign(tmp);
 
 	CMemoryTextFileLoader textFileLoader;
-	textFileLoader.Bind(iLen - (sizeof(DWORD) + 2 + 14 + 2), pcData);
+	textFileLoader.Bind(textLen, pcData);
 
-	for (DWORD i = 0; i < textFileLoader.GetLineCount(); ++i)
+	m_stCRC.clear();
+	m_dwCRC = 0;
+
+	if (textFileLoader.GetLineCount() > 0)
 	{
-		if (!textFileLoader.SplitLine(i, &stTokenVector))
-			continue;
+		m_stCRC = textFileLoader.GetLineString(0);
 
-		stl_lowers(stTokenVector[0]);
-		std::string stKey = stTokenVector[0];
+		bool bAllDigits = !m_stCRC.empty() && std::all_of(m_stCRC.begin(), m_stCRC.end(), [](char c)
+		{
+			return isdigit((unsigned char)c);
+		});
 
-		stTokenVector.erase(stTokenVector.begin());
-		PutVector(stKey.c_str(), stTokenVector);
+		DWORD startLine = 0;
+
+		if (bAllDigits)
+		{
+			m_dwCRC = atoi(m_stCRC.c_str());
+			startLine = 1; 
+		}
+
+		for (DWORD i = startLine; i < textFileLoader.GetLineCount(); ++i)
+		{
+			if (!textFileLoader.SplitLine(i, &stTokenVector))
+				continue;
+
+			stl_lowers(stTokenVector[0]);
+			std::string stKey = stTokenVector[0];
+
+			stTokenVector.erase(stTokenVector.begin());
+			PutVector(stKey.c_str(), stTokenVector);
+		}
 	}
-	return true;
-	*/
-	CMemoryTextFileLoader textFileLoader;
-	textFileLoader.Bind(iLen - (sizeof(DWORD) + 2), pcData);
 
-	m_stCRC = textFileLoader.GetLineString(0);
-	m_dwCRC = atoi(m_stCRC.c_str());
-
-	for (DWORD i = 1; i < textFileLoader.GetLineCount(); ++i)
-	{
-		if (!textFileLoader.SplitLine(i, &stTokenVector))
-			continue;
-
-		stl_lowers(stTokenVector[0]);
-		std::string stKey = stTokenVector[0];
-
-		stTokenVector.erase(stTokenVector.begin());
-		PutVector(stKey.c_str(), stTokenVector);
-	}
-
-	//Tracef("Property: %s\n", c_pszFileName);
 	return true;
 }
 

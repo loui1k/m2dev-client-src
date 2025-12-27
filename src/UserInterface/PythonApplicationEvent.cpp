@@ -166,11 +166,6 @@ void CPythonApplication::OnIMEKeyDown(int iIndex)
 }
 /////////////////////////////
 
-void CPythonApplication::RunIMEChangeCodePage()
-{
-	UI::CWindowManager& rkWndMgr=UI::CWindowManager::Instance();
-	rkWndMgr.RunChangeCodePage();
-}
 void CPythonApplication::RunIMEOpenCandidateListEvent()
 {
 	UI::CWindowManager& rkWndMgr=UI::CWindowManager::Instance();

@@ -475,7 +475,7 @@ PyObject * guildGetGuildExperience(PyObject * poSelf, PyObject * poArgs)
 	if (rGuildInfo.dwGuildLevel >= GULID_MAX_LEVEL)
 		return Py_BuildValue("ii", 0, 0);
 
-	unsigned lastExp = LocaleService_GetLastExp(rGuildInfo.dwGuildLevel);
+	unsigned lastExp = GetGuildLastExp(rGuildInfo.dwGuildLevel);
 
 	return Py_BuildValue("ii", rGuildInfo.dwCurrentExperience, lastExp - rGuildInfo.dwCurrentExperience);
 }

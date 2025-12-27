@@ -23,23 +23,16 @@
 #endif
 
 #include <dshow.h>
-
 #include "Locale.h"
-
 #include "GameType.h"
-extern DWORD __DEFAULT_CODE_PAGE__;
 
-#define APP_NAME	"Metin 2"
+#define APP_NAME "Metin 2"
 
 enum
 {
-	POINT_MAX_NUM = 255,	
+	POINT_MAX_NUM = 255,
 	CHARACTER_NAME_MAX_LEN = 24,
-#if defined(LOCALE_SERVICE_JAPAN)
-	PLAYER_NAME_MAX_LEN = 16,
-#else
 	PLAYER_NAME_MAX_LEN = 12,
-#endif
 };
 
 void initudp();
@@ -73,11 +66,3 @@ void initquest();
 void initsafebox();
 void initguild();
 void initMessenger();
-
-extern const std::string& ApplicationStringTable_GetString(DWORD dwID);
-extern const std::string& ApplicationStringTable_GetString(DWORD dwID, LPCSTR szKey);
-
-extern const char* ApplicationStringTable_GetStringz(DWORD dwID);
-extern const char* ApplicationStringTable_GetStringz(DWORD dwID, LPCSTR szKey);
-
-extern void ApplicationSetErrorString(const char* szErrorString);

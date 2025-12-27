@@ -1,6 +1,8 @@
 #include "StdAfx.h"
 #include "CRC32.h"
 
+#include <utf8.h>
+
 static unsigned long CRCTable[256] = 
 {
 	0x00000000,0x77073096,0xEE0E612C,0x990951BA,0x076DC419,0x706AF48F,
@@ -147,65 +149,55 @@ DWORD GetHFILECRC32(HANDLE hFile)
 							  dataOffset + mapSize,	// low
 							  NULL);				// name
 	if (hFM)
-	{	
-		LPVOID lpMapData = MapViewOfFile(hFM,
-									FILE_MAP_READ,
-									0,
-									dwFileMapStart,							
-									dwMapViewSize);
-
-		dwRetCRC32=GetCRC32((const char*)lpMapData, dwFileSize);
-
-		
+	{
+		LPVOID lpMapData = MapViewOfFile(hFM, FILE_MAP_READ, 0, dwFileMapStart, dwMapViewSize);
 		if (lpMapData)
 		{
-
+			//tw1x1: If MapViewOfFile returns null, crash risk on mapping failure
+			dwRetCRC32 = GetCRC32((const char*)lpMapData, dwFileSize);
 			UnmapViewOfFile(lpMapData);
 		}
-		
 		CloseHandle(hFM);
 	}
 
 	return dwRetCRC32;
 }
 
-DWORD GetFileCRC32(const char* c_szFileName)
+DWORD GetFileCRC32(const wchar_t* c_szFileName)
 {
-	HANDLE hFile = CreateFile(c_szFileName,					// name of the file
-						 GENERIC_READ,					// desired access
-						 FILE_SHARE_READ,			// share mode
-						 NULL,						// security attributes
-						 OPEN_EXISTING,			// creation disposition
-						 FILE_ATTRIBUTE_NORMAL,		// flags and attr
-						 NULL);						// template file
-
-	if (INVALID_HANDLE_VALUE == hFile)
+	if (!c_szFileName || !*c_szFileName)
 		return 0;
 
-	
-	DWORD dwRetCRC32=GetHFILECRC32(hFile);
-	
-	CloseHandle(hFile);
+	HANDLE hFile = CreateFileW(c_szFileName, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (hFile == INVALID_HANDLE_VALUE)
+		return 0;
 
+	DWORD dwRetCRC32 = GetHFILECRC32(hFile);
+	CloseHandle(hFile);
 	return dwRetCRC32;
+}
+
+DWORD GetFileCRC32(const char* fileUtf8)
+{
+	if (!fileUtf8 || !*fileUtf8)
+		return 0;
+
+	std::wstring wFile = Utf8ToWide(fileUtf8);
+	return GetFileCRC32(wFile.c_str());
 }
 
 DWORD GetFileSize(const char* c_szFileName)
 {
-	HANDLE hFile = CreateFile(c_szFileName,					// name of the file
-						 GENERIC_READ,					// desired access
-						 FILE_SHARE_READ,			// share mode
-						 NULL,						// security attributes
-						 OPEN_EXISTING,			// creation disposition
-						 FILE_ATTRIBUTE_NORMAL,		// flags and attr
-						 NULL);						// template file
-
-	if (INVALID_HANDLE_VALUE == hFile)
+	if (!c_szFileName || !*c_szFileName)
 		return 0;
 
-	DWORD dwSize = GetFileSize(hFile, NULL);
+	std::wstring wFile = Utf8ToWide(std::string(c_szFileName));
+	HANDLE hFile = CreateFileW(wFile.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
+	if (hFile == INVALID_HANDLE_VALUE)
+		return 0;
+
+	DWORD dwSize = ::GetFileSize(hFile, nullptr);
 	CloseHandle(hFile);
-
 	return dwSize;
 }

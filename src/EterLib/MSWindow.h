@@ -42,10 +42,10 @@ class CMSWindow
 		virtual void	OnSize(WPARAM wParam, LPARAM lParam);
 		
 	protected:
-		const char* RegisterWindowClass(DWORD style, int brush, WNDPROC pfnWndProc, HICON hIcon=NULL, int iCursorResource=32512);
+		const wchar_t* RegisterWindowClass(DWORD style, int brush, WNDPROC pfnWndProc, HICON hIcon=NULL, int iCursorResource=32512);
 
 	protected:
-		typedef std::set<char*, stl_sz_less> TWindowClassSet;
+		typedef std::set<std::wstring> TWindowClassSet;
 		
 	protected:
 		HWND m_hWnd;

@@ -16,11 +16,19 @@ class CGraphicTextInstance
 			HORIZONTAL_ALIGN_CENTER		= 0x02,
 			HORIZONTAL_ALIGN_RIGHT		= 0x03,
 		};
+
 		enum EVerticalAlign
 		{
 			VERTICAL_ALIGN_TOP		= 0x10,
 			VERTICAL_ALIGN_CENTER	= 0x20,
 			VERTICAL_ALIGN_BOTTOM	= 0x30
+		};
+
+		enum class ETextDirection : unsigned char
+		{
+			Auto = 0,
+			LTR = 1,
+			RTL = 2,
 		};
 
 	public:
@@ -65,14 +73,24 @@ class CGraphicTextInstance
 		const std::string& GetValueStringReference();
 		WORD GetTextLineCount();
 
+		void SetTextDirection(ETextDirection dir);
+		ETextDirection GetTextDirection() const { return m_direction; }
+		bool IsRTL() const
+		{
+			// For AUTO mode, use computed result from BiDi analysis
+			if (m_direction == ETextDirection::Auto)
+				return m_computedRTL;
+			// For explicit direction, derive from m_direction
+			return (m_direction == ETextDirection::RTL);
+		}
+
 		int PixelPositionToCharacterPosition(int iPixelPosition);
 		int GetHorizontalAlign();
 
 	protected:
 		void __Initialize();
-		int  __DrawCharacter(CGraphicFontTexture * pFontTexture, WORD codePage, wchar_t text, DWORD dwColor);
+		int  __DrawCharacter(CGraphicFontTexture * pFontTexture, wchar_t text, DWORD dwColor);
 		void __GetTextPos(DWORD index, float* x, float* y);
-		int __GetTextTag(const wchar_t * src, int maxLen, int & tagLen, std::wstring & extraInfo);
 
 	protected:
 		struct SHyperlink
@@ -112,11 +130,15 @@ class CGraphicTextInstance
 	private:
 		bool m_isUpdate;
 		bool m_isUpdateFontTexture;
-		
+		bool m_computedRTL;  // Result of BiDi analysis (used when m_direction == Auto)
+
 		CGraphicText::TRef m_roText;
 		CGraphicFontTexture::TPCharacterInfomationVector m_pCharInfoVector;
 		std::vector<DWORD> m_dwColorInfoVector;
 		std::vector<SHyperlink> m_hyperlinkVector;
+		std::vector<int> m_logicalToVisualPos; // Maps logical cursor pos (UTF-16 with tags) to visual pos (rendered chars)
+		std::vector<int> m_visualToLogicalPos; // Reverse mapping: visual pos -> logical pos
+		ETextDirection m_direction = ETextDirection::Auto; // Will be overwritten by __Initialize()
 
 	public:
 		static void CreateSystem(UINT uCapacity);
@@ -125,10 +147,8 @@ class CGraphicTextInstance
 		static CGraphicTextInstance* New();
 		static void Delete(CGraphicTextInstance* pkInst);
 
-		static CDynamicPool<CGraphicTextInstance>		ms_kPool;
+		static CDynamicPool<CGraphicTextInstance> ms_kPool;
 };
 
-extern const char* FindToken(const char* begin, const char* end);
-extern int ReadToken(const char* token);
 
 #endif

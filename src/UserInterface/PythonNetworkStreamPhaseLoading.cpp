@@ -171,7 +171,7 @@ void CPythonNetworkStream::SetLoadingPhase()
 	Tracen("## Network - Loading Phase ##");
 	Tracen("");
 
-	m_strPhase = "Loading";	
+	m_strPhase = "Loading";
 
 	m_dwChangingPhaseTime = ELTimer_GetMSec();
 	m_phaseProcessFunc.Set(this, &CPythonNetworkStream::LoadingPhase);
@@ -292,8 +292,8 @@ bool CPythonNetworkStream::RecvMainCharacter4_BGM_VOL()
 }
 
 
-static std::string	gs_fieldMusic_fileName;
-static float		gs_fieldMusic_volume = 1.0f / 5.0f * 0.1f;
+static std::string gs_fieldMusic_fileName;
+static float gs_fieldMusic_volume = 1.0f / 5.0f * 0.1f;
 
 void CPythonNetworkStream::__SetFieldMusicFileName(const char* musicName)
 {
