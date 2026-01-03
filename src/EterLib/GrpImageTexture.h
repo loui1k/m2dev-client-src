@@ -2,6 +2,8 @@
 
 #include "GrpTexture.h"
 
+struct TDecodedImageData;
+
 class CGraphicImageTexture : public CGraphicTexture
 {
 	public:
@@ -18,6 +20,7 @@ class CGraphicImageTexture : public CGraphicTexture
 		bool		CreateFromMemoryFile(UINT bufSize, const void* c_pvBuf, D3DFORMAT d3dFmt, DWORD dwFilter = D3DX_FILTER_LINEAR);
 		bool		CreateFromDDSTexture(UINT bufSize, const void* c_pvBuf);
 		bool		CreateFromSTB(UINT bufSize, const void* c_pvBuf);
+		bool		CreateFromDecodedData(const TDecodedImageData& decodedImage, D3DFORMAT d3dFmt, DWORD dwFilter);
 
 		void		SetFileName(const char * c_szFileName);
 		
