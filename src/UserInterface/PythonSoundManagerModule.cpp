@@ -96,23 +96,13 @@ PyObject* sndSetMusicVolume(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildNone();
 }
 
-PyObject* sndSetSoundVolumef(PyObject* poSelf, PyObject* poArgs)
+PyObject* sndSetSoundVolume(PyObject* poSelf, PyObject* poArgs)
 {
 	float fVolume;
 	if (!PyTuple_GetFloat(poArgs, 0, &fVolume))
 		return Py_BuildException();
 
 	SoundEngine::Instance().SetSoundVolume(fVolume);
-	return Py_BuildNone();
-}
-
-PyObject* sndSetSoundVolume(PyObject* poSelf, PyObject* poArgs)
-{
-	float volume;
-	if (!PyTuple_GetFloat(poArgs, 0, &volume))
-		return Py_BuildException();
-
-	SoundEngine::Instance().SetSoundVolume(volume / 100.0f);
 	return Py_BuildNone();
 }
 
@@ -130,7 +120,6 @@ void initsnd()
 
 		{ "SetMasterVolume",		sndSetMasterVolume,			METH_VARARGS },
 		{ "SetMusicVolume",			sndSetMusicVolume,			METH_VARARGS },
-		{ "SetSoundVolumef",		sndSetSoundVolumef,			METH_VARARGS },
 		{ "SetSoundVolume",			sndSetSoundVolume,			METH_VARARGS },
 		{ NULL,						NULL,						NULL },
 	};

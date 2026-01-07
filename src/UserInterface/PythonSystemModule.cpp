@@ -134,7 +134,7 @@ PyObject * systemGetMusicVolume(PyObject * poSelf, PyObject * poArgs)
 
 PyObject * systemGetSoundVolume(PyObject * poSelf, PyObject * poArgs)
 {
-	return Py_BuildValue("i", CPythonSystem::Instance().GetSoundVolume());
+	return Py_BuildValue("f", CPythonSystem::Instance().GetSoundVolume());
 }
 
 PyObject * systemSetMusicVolume(PyObject * poSelf, PyObject * poArgs)
@@ -147,13 +147,13 @@ PyObject * systemSetMusicVolume(PyObject * poSelf, PyObject * poArgs)
 	return Py_BuildNone();
 }
 
-PyObject * systemSetSoundVolumef(PyObject * poSelf, PyObject * poArgs)
+PyObject * systemSetSoundVolume(PyObject * poSelf, PyObject * poArgs)
 {
 	float fVolume;
 	if (!PyTuple_GetFloat(poArgs, 0, &fVolume))
 		return Py_BuildException();
 
-	CPythonSystem::Instance().SetSoundVolumef(fVolume);
+	CPythonSystem::Instance().SetSoundVolume(fVolume);
 	return Py_BuildNone();
 }
 
@@ -408,7 +408,7 @@ void initsystem()
 		{ "GetSoundVolume",				systemGetSoundVolume,			METH_VARARGS },
 
 		{ "SetMusicVolume",				systemSetMusicVolume,			METH_VARARGS },
-		{ "SetSoundVolumef",			systemSetSoundVolumef,			METH_VARARGS },
+		{ "SetSoundVolume",				systemSetSoundVolume,			METH_VARARGS },
 		{ "IsSoftwareCursor",			systemIsSoftwareCursor,			METH_VARARGS },
 
 		{ "SetViewChatFlag",			systemSetViewChatFlag,			METH_VARARGS },

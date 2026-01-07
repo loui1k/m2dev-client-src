@@ -213,7 +213,7 @@ float CPythonSystem::GetMusicVolume()
 	return m_Config.music_volume;
 }
 
-int CPythonSystem::GetSoundVolume()
+float CPythonSystem::GetSoundVolume()
 {
 	return m_Config.voice_volume;
 }
@@ -223,9 +223,9 @@ void CPythonSystem::SetMusicVolume(float fVolume)
 	m_Config.music_volume = fVolume;
 }
 
-void CPythonSystem::SetSoundVolumef(float fVolume)
+void CPythonSystem::SetSoundVolume(float fVolume)
 {
-	m_Config.voice_volume = int(5 * fVolume);
+	m_Config.voice_volume = fVolume;
 }
 
 int CPythonSystem::GetDistance()
@@ -294,7 +294,7 @@ void CPythonSystem::SetDefaultConfig()
 
 	m_Config.gamma				= 3;
 	m_Config.music_volume		= 1.0f;
-	m_Config.voice_volume		= 5;
+	m_Config.voice_volume		= 1.0f;
 
 	m_Config.bDecompressDDS		= 0;
 	m_Config.bSoftwareTiling	= 0;
@@ -409,15 +409,10 @@ bool CPythonSystem::LoadConfig()
 			m_Config.is_object_culling = atoi(value) ? true : false;
 		else if (!stricmp(command, "VISIBILITY"))
 			m_Config.iDistance = atoi(value);
-		else if (!stricmp(command, "MUSIC_VOLUME")) {
-			if(strchr(value, '.') == 0) { // Old compatiability
-				m_Config.music_volume = pow(10.0f, (-1.0f + (((float) atoi(value)) / 5.0f)));
-				if(atoi(value) == 0)
-					m_Config.music_volume = 0.0f;
-			} else
-				m_Config.music_volume = atof(value);
-		} else if (!stricmp(command, "VOICE_VOLUME"))
-			m_Config.voice_volume = (char) atoi(value);
+		else if (!stricmp(command, "MUSIC_VOLUME"))
+			m_Config.music_volume = atof(value);
+		else if (!stricmp(command, "VOICE_VOLUME"))
+			m_Config.voice_volume = atof(value);
 		else if (!stricmp(command, "GAMMA"))
 			m_Config.gamma = atoi(value);
 		else if (!stricmp(command, "IS_SAVE_ID"))
@@ -503,7 +498,7 @@ bool CPythonSystem::SaveConfig()
 				"OBJECT_CULLING				%d\n"
 				"VISIBILITY					%d\n"
 				"MUSIC_VOLUME				%.3f\n"
-				"VOICE_VOLUME				%d\n"
+				"VOICE_VOLUME				%.3f\n"
 				"GAMMA						%d\n"
 				"IS_SAVE_ID					%d\n"
 				"SAVE_ID					%s\n"

@@ -59,7 +59,7 @@ class CPythonSystem : public CSingleton<CPythonSystem>
 			int				iShadowLevel;
 
 			FLOAT			music_volume;
-			BYTE			voice_volume;
+			FLOAT			voice_volume;
 
 			int				gamma;
 
@@ -141,9 +141,9 @@ class CPythonSystem : public CSingleton<CPythonSystem>
 
 		// Sound
 		float							GetMusicVolume();
-		int								GetSoundVolume();
+		float							GetSoundVolume();
 		void							SetMusicVolume(float fVolume);
-		void							SetSoundVolumef(float fVolume);
+		void							SetSoundVolume(float fVolume);
 
 		int								GetDistance();
 		int								GetShadowLevel();
