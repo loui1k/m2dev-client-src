@@ -36,18 +36,6 @@ void CActorInstance::OnRender()
 	if (!m_pkCurRaceData)
 		return;
 
-	// MR-5: Fix effect rendering when actor is semi-transparent
-	// Credits to d1str4ught
-	if (GetAlphaValue() < 1.0f)
-	{
-		for (auto it = m_AttachingEffectList.begin(); it != m_AttachingEffectList.end(); ++it)
-		{
-			CEffectManager::Instance().SelectEffectInstance(it->dwEffectIndex);
-			CEffectManager::Instance().RenderEffect();
-		}
-	}
-	// MR-5: -- END OF -- Fix effect rendering when actor is semi-transparent
-
 	D3DMATERIAL9 kMtrl;
 	STATEMANAGER.GetMaterial(&kMtrl);
 

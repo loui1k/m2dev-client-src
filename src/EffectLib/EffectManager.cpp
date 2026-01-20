@@ -351,17 +351,6 @@ void CEffectManager::HideEffect()
 	m_pSelectedEffectInstance->Hide();
 }
 
-// MR-5: Fix effect rendering when actor is semi-transparent
-// Credits to d1str4ught
-void CEffectManager::RenderEffect()
-{
-	if (!m_pSelectedEffectInstance)
-		return;
-
-	m_pSelectedEffectInstance->Render();
-}
-// MR-5: -- END OF -- Fix effect rendering when actor is semi-transparent
-
 void CEffectManager::ApplyAlwaysHidden()
 {
 	if (!m_pSelectedEffectInstance)

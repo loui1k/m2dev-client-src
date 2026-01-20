@@ -13,7 +13,4 @@ This repository contains the source code necessary to compile the game client ex
 ## 📋 Changelog
 
 ### 🐛 Bug Fixes
-* **Amun's freeze on drag window**: Fixed a bug where the client window would freeze while we are dragging it around.
-* **Debug mode:** Fly effects are now registering when using Debug mode.
-* **Fix effect rendering in low opacity models:** Effects now appear normally on semi-transparent meshes.
-* **Fly targeting fixed for buff/healing skills:** Fixed an issue where fly target effect would render in the buffer's selected target even if the target was unbuffable (if viewing from another client).
+* **Effect adapting to semi-transparent meshes:** Effect adapting to semi-transparent meshes has been removed as it was causing artifacts when opacity was lower than 1

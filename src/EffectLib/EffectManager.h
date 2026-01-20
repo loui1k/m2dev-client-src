@@ -56,10 +56,6 @@ class CEffectManager : public CScreen, public CSingleton<CEffectManager>
 
 		void ShowEffect();
 		void HideEffect();
-		// MR-5: Fix effect rendering when actor is semi-transparent
-		// Credits to d1str4ught
-		void RenderEffect();
-		// MR-5: -- END OF -- Fix effect rendering when actor is semi-transparent
 
 		void ApplyAlwaysHidden();
 		void ReleaseAlwaysHidden();
