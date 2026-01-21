@@ -2281,6 +2281,7 @@ typedef struct SPacketGCNPCPosition
 struct TNPCPosition
 {
     uint8_t bType;
+    uint32_t dwVnum;
     char name[CHARACTER_NAME_MAX_LEN+1];
     int32_t x;
     int32_t y;
