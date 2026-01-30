@@ -100,7 +100,6 @@ class CPythonMiniMap : public CScreen, public CSingleton<CPythonMiniMap>
 	protected:
 		void __Initialize();
 		void __SetPosition();
-		void __LoadAtlasMarkInfo();
 
 		void __RenderWayPointMark(int ixCenter, int iyCenter);
 		void __RenderMiniWayPointMark(int ixCenter, int iyCenter);

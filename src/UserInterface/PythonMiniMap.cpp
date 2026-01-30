@@ -807,81 +807,6 @@ void CPythonMiniMap::DeleteTarget(int iID)
 	RemoveWayPoint(iID);
 }
 
-void CPythonMiniMap::__LoadAtlasMarkInfo()
-{
-	ClearAtlasMarkInfo();
-	ClearGuildArea();
-
-	CPythonBackground& rkBG=CPythonBackground::Instance();
-	if (!rkBG.IsMapOutdoor())
-		return;
-
-	CMapOutdoor& rkMap=rkBG.GetMapOutdoorRef();
-
-	// LOCALE
-	char szAtlasMarkInfoFileName[64+1];
-	_snprintf(szAtlasMarkInfoFileName, sizeof(szAtlasMarkInfoFileName), "%s/map/%s_point.txt", GetLocalePathCommon(), rkMap.GetName().c_str());
-	// END_OF_LOCALE
-
-	CTokenVectorMap stTokenVectorMap;
-	
-	if (!LoadMultipleTextData(szAtlasMarkInfoFileName, stTokenVectorMap))
-	{
-		Tracef(" CPythonMiniMap::__LoadAtlasMarkInfo File Load %s ERROR\n", szAtlasMarkInfoFileName);
-		return;
-	}
-
-	for (DWORD i = 0; i < stTokenVectorMap.size(); ++i)
-	{
-		char szMarkInfoName[32+1];
-		_snprintf(szMarkInfoName, sizeof(szMarkInfoName), "%d", i);
-
-		if (stTokenVectorMap.end() == stTokenVectorMap.find(szMarkInfoName))
-			continue;
-
-		const CTokenVector & rVector = stTokenVectorMap[szMarkInfoName];
-
-		const std::string& c_rstrPositionX = rVector[0].c_str();
-		const std::string& c_rstrPositionY = rVector[1].c_str();
-		const std::string& c_rstrVnum = rVector[2].c_str();
-		const DWORD c_dwVnum = atoi(c_rstrVnum.c_str());
-
-		const CPythonNonPlayer::TMobTable* c_pMobTable = CPythonNonPlayer::Instance().GetTable(c_dwVnum);
-		if (c_pMobTable)
-		{
-			TAtlasMarkInfo aAtlasMarkInfo;
-			aAtlasMarkInfo.m_fX = atof(c_rstrPositionX.c_str());
-			aAtlasMarkInfo.m_fY = atof(c_rstrPositionY.c_str());
-			aAtlasMarkInfo.m_strText = c_pMobTable->szLocaleName;
-			if (c_pMobTable->bType == CActorInstance::TYPE_NPC)
-				aAtlasMarkInfo.m_byType = TYPE_NPC;
-			else if (c_pMobTable->bType == CActorInstance::TYPE_WARP)
-			{
-				aAtlasMarkInfo.m_byType = TYPE_WARP;
-				int iPos = aAtlasMarkInfo.m_strText.find(" ");
-				if (iPos >= 0)
-					aAtlasMarkInfo.m_strText[iPos] = 0;
-
-			}
-			else if (c_pMobTable->bType == CActorInstance::TYPE_STONE && c_dwVnum >= 20702 && c_dwVnum <= 20706)
-				aAtlasMarkInfo.m_byType = TYPE_NPC;
-
-			aAtlasMarkInfo.m_fScreenX = aAtlasMarkInfo.m_fX / m_fAtlasMaxX * m_fAtlasImageSizeX - (float)m_WhiteMark.GetWidth() / 2.0f;
-			aAtlasMarkInfo.m_fScreenY = aAtlasMarkInfo.m_fY / m_fAtlasMaxY * m_fAtlasImageSizeY - (float)m_WhiteMark.GetHeight() / 2.0f;
-
-			switch (aAtlasMarkInfo.m_byType)
-			{
-			case TYPE_NPC:
-				m_AtlasNPCInfoVector.push_back(aAtlasMarkInfo);
-				break;
-			case TYPE_WARP:
-				m_AtlasWarpInfoVector.push_back(aAtlasMarkInfo);
-				break;
-			}
-		}
-	}
-}
-
 bool CPythonMiniMap::LoadAtlas()
 {
 	CPythonBackground& rkBG=CPythonBackground::Instance();
@@ -916,7 +841,7 @@ bool CPythonMiniMap::LoadAtlas()
 	}
 	m_AtlasPlayerMark.SetImagePointer((CGraphicSubImage *) CResourceManager::Instance().GetResourcePointer(playerMarkFileName));
 
-	short sTerrainCountX, sTerrainCountY;  
+	short sTerrainCountX, sTerrainCountY;
 	rkMap.GetBaseXY(&m_dwAtlasBaseX, &m_dwAtlasBaseY);
 	rkMap.GetTerrainCount(&sTerrainCountX, &sTerrainCountY);
 	m_fAtlasMaxX = (float) sTerrainCountX * static_cast<float>(CTerrainImpl::TERRAIN_XSIZE);
@@ -924,8 +849,6 @@ bool CPythonMiniMap::LoadAtlas()
 
 	m_fAtlasImageSizeX = (float) m_AtlasImageInstance.GetWidth();
 	m_fAtlasImageSizeY = (float) m_AtlasImageInstance.GetHeight();
-
-	__LoadAtlasMarkInfo();
 
 	if (m_bShowAtlas)
 		OpenAtlasWindow();
