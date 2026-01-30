@@ -172,8 +172,7 @@ void CPythonCharacterManager::Update()
 
 		if (pkInstMain)
 		{
-			if (pkInstEach->IsForceVisible())
-			{
+			if (pkInstEach->IsForceVisible()) [[unlikely]] {
 				dwForceVisibleInstCount++;
 				continue;
 			}
@@ -181,8 +180,7 @@ void CPythonCharacterManager::Update()
 			// Optimized: Use squared distance to avoid sqrt
 			float fDistanceSquared = pkInstEach->NEW_GetDistanceFromDestInstanceSquared(*pkInstMain);
 			const float fViewBoundSquared = (CHAR_STAGE_VIEW_BOUND + 10) * (CHAR_STAGE_VIEW_BOUND + 10);
-			if (fDistanceSquared > fViewBoundSquared)
-			{
+			if (fDistanceSquared > fViewBoundSquared) [[unlikely]] {
 				__DeleteBlendOutInstance(pkInstEach);
 				m_kAliveInstMap.erase(c);
 				dwDeadInstCount++;
@@ -342,12 +340,10 @@ void CPythonCharacterManager::UpdateDeleting()
 	{
 		CInstanceBase * pInstance = *itor;
 
-		if (pInstance->UpdateDeleting())
-		{
+		if (pInstance->UpdateDeleting()) [[likely]] {
 			++itor;
 		}
-		else
-		{
+		else [[unlikely]] {
 			CInstanceBase::Delete(pInstance);
 			itor = m_kDeadInstList.erase(itor);
 		}
@@ -473,7 +469,7 @@ void CPythonCharacterManager::__RenderSortedAliveActorList()
 	s_kVct_pkInstAliveSort.clear();
 
 	CCamera* pCamera = CCameraManager::instance().GetCurrentCamera();
-	if (!pCamera)
+	if (!pCamera) [[unlikely]]
 		return;
 
 	TCharacterInstanceMap& rkMap_pkInstAlive=m_kAliveInstMap;
@@ -495,7 +491,7 @@ void CPythonCharacterManager::__RenderSortedDeadActorList()
 	s_kVct_pkInstDeadSort.clear();
 
 	CCamera* pCamera = CCameraManager::instance().GetCurrentCamera();
-	if (!pCamera)
+	if (!pCamera) [[unlikely]]
 		return;
 
 	TCharacterInstanceList& rkLst_pkInstDead=m_kDeadInstList;
@@ -575,13 +571,13 @@ void CPythonCharacterManager::RenderCollision()
 CInstanceBase * CPythonCharacterManager::CreateInstance(const CInstanceBase::SCreateData& c_rkCreateData)
 {
 	CInstanceBase * pCharacterInstance = RegisterInstance(c_rkCreateData.m_dwVID);
-	if (!pCharacterInstance)
+	if (!pCharacterInstance) [[unlikely]]
 	{
 		TraceError("CPythonCharacterManager::CreateInstance: VID[%d] - ALREADY EXIST\n", c_rkCreateData);
 		return NULL;
 	}
 
-	if (!pCharacterInstance->Create(c_rkCreateData))
+	if (!pCharacterInstance->Create(c_rkCreateData)) [[unlikely]]
 	{
 		TraceError("CPythonCharacterManager::CreateInstance VID[%d] Race[%d]", c_rkCreateData.m_dwVID, c_rkCreateData.m_dwRace);
 		DeleteInstance(c_rkCreateData.m_dwVID);

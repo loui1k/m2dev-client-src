@@ -36,7 +36,6 @@ class IAbstractApplication : public TAbstractSingleton<IAbstractApplication>
 		virtual float GetGlobalTime() = 0;
 		virtual float GetGlobalElapsedTime() = 0;
 
-		virtual void SkipRenderBuffering(DWORD dwSleepMSec) = 0;
 		virtual void SetServerTime(time_t tTime) = 0;
 		virtual void SetCenterPosition(float fx, float fy, float fz) = 0;
 

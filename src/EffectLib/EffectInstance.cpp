@@ -71,7 +71,7 @@ struct FEffectUpdator
 	}
 	void operator () (CEffectElementBaseInstance * pInstance)
 	{
-		if (pInstance->Update(fElapsedTime))
+		if (pInstance->Update(fElapsedTime)) [[likely]]
 			isAlive = TRUE;
 	}
 };

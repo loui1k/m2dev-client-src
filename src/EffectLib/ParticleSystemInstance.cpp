@@ -300,15 +300,13 @@ bool CParticleSystemInstance::OnUpdate(float fElapsedTime)
 		{
 			CParticleInstance * pInstance = *itor;
 
-			if (!pInstance->Update(fElapsedTime,fAngularVelocity))
-			{
+			if (!pInstance->Update(fElapsedTime,fAngularVelocity)) [[unlikely]] {
 				pInstance->DeleteThis();
 
 				itor = m_ParticleInstanceListVector[dwFrameIndex].erase(itor);
 				m_dwCurrentEmissionCount--;
 			}
-			else
-			{
+			else [[likely]] {
 				if (pInstance->m_byFrameIndex != dwFrameIndex)
 				{
 					m_ParticleInstanceListVector[dwFrameCount+pInstance->m_byFrameIndex].push_back(*itor);

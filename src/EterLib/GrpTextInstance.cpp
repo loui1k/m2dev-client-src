@@ -591,8 +591,7 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 				fFontHeight=float(pCurCharInfo->height);
 				fFontAdvance=float(pCurCharInfo->advance);
 
-				if ((fCurX+fFontWidth)-m_v3Position.x > m_fLimitWidth)
-				{
+				if ((fCurX+fFontWidth)-m_v3Position.x > m_fLimitWidth) [[unlikely]] {
 					if (m_isMultiLine)
 					{
 						fCurX=fStanX;
@@ -693,8 +692,7 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 			fFontMaxHeight=(std::max)(fFontHeight, (float)pCurCharInfo->height);
 			fFontAdvance=float(pCurCharInfo->advance);
 
-			if ((fCurX+fFontWidth)-m_v3Position.x > m_fLimitWidth)
-			{
+			if ((fCurX + fFontWidth) - m_v3Position.x > m_fLimitWidth) [[unlikely]] {
 				if (m_isMultiLine)
 				{
 					fCurX=fStanX;

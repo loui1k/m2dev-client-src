@@ -84,12 +84,6 @@ void CPythonApplication::__UpdateCamera()
 	if (0.0f != m_kCmrPos.m_fUpDir)
 		pMainCamera->MoveVertical(m_kCmrPos.m_fUpDir);
 
-	//////////////////////
-
-	if (pMainCamera->IsDraging())
-		SkipRenderBuffering(3000);
-
-	//////////////////////
 	// Sound Setting
 	const D3DXVECTOR3 & c_rv3CameraDirection = pMainCamera->GetView();
 	const D3DXVECTOR3 & c_rv3CameraUp = pMainCamera->GetUp();

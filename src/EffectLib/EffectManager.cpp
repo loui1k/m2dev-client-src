@@ -67,16 +67,13 @@ void CEffectManager::Update()
 
 		pEffectInstance->Update(/*fElapsedTime*/);
 
-		if (!pEffectInstance->isAlive())
-		{
-			itor = m_kEftInstMap.erase(itor);
-			
-			CEffectInstance::Delete(pEffectInstance);			
-		}
-		else
-		{
+		if (pEffectInstance->isAlive()) [[likely]] {
 			++itor;
+			continue;
 		}
+
+		itor = m_kEftInstMap.erase(itor);
+		CEffectInstance::Delete(pEffectInstance);
 	}
 }
 

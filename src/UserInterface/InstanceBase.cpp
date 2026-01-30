@@ -718,8 +718,6 @@ bool CInstanceBase::__FindRaceType(DWORD dwRace, BYTE* pbType)
 
 bool CInstanceBase::Create(const SCreateData& c_rkCreateData)
 {
-	IAbstractApplication::GetSingleton().SkipRenderBuffering(300);
-
 	SetInstanceType(c_rkCreateData.m_bType);
 
 

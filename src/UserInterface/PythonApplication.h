@@ -158,7 +158,6 @@ class CPythonApplication : public CMSApplication, public CInputKeyboard, public 
 
 		void SetMinFog(float fMinFog);
 		void SetFrameSkip(bool isEnable);
-		void SkipRenderBuffering(DWORD dwSleepMSec);
 
 		bool Create(PyObject* poSelf, const char* c_szName, int width, int height, int Windowed);
 		bool CreateDevice(int width, int height, int Windowed, int bit = 32, int frequency = 0);
@@ -437,7 +436,6 @@ class CPythonApplication : public CMSApplication, public CInputKeyboard, public 
 		BOOL						m_isWindowFullScreenEnable;
 
 		DWORD						m_dwStickyKeysFlag;
-		DWORD						m_dwBufSleepSkipTime;
 		int							m_iForceSightRange;
 
 	protected:

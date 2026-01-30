@@ -256,11 +256,6 @@ void CPythonApplication::UpdateGame()
 	SetCenterPosition(kPPosMainActor.x, kPPosMainActor.y, kPPosMainActor.z);
 }
 
-void CPythonApplication::SkipRenderBuffering(DWORD dwSleepMSec)
-{
-	m_dwBufSleepSkipTime=ELTimer_GetMSec()+dwSleepMSec;
-}
-
 bool CPythonApplication::Process()
 {
 	ELTimer_SetFrameMSec();
@@ -275,8 +270,7 @@ bool CPythonApplication::Process()
 	static UINT		s_uiLoad = 0;
 	static DWORD	s_dwCheckTime = ELTimer_GetMSec();
 
-	if (ELTimer_GetMSec() - s_dwCheckTime > 1000)
-	{
+	if (ELTimer_GetMSec() - s_dwCheckTime > 1000) [[unlikely]] {
 		m_dwUpdateFPS		= s_dwUpdateFrameCount;
 		m_dwRenderFPS		= s_dwRenderFrameCount;
 		m_dwLoad			= s_uiLoad;
@@ -329,8 +323,7 @@ bool CPythonApplication::Process()
 #endif
 	// Mouse
 	POINT Point;
-	if (GetCursorPos(&Point))
-	{
+	if (GetCursorPos(&Point)) [[likely]] {
 		ScreenToClient(m_hWnd, &Point);
 		OnMouseMove(Point.x, Point.y);		
 	}
@@ -531,14 +524,11 @@ bool CPythonApplication::Process()
 
 		bool canRender = true;
 
-		if (m_isMinimizedWnd)
-		{
+		if (m_isMinimizedWnd) [[unlikely]] {
 			canRender = false;
 		}
-		else
-		{
-			if (m_pyGraphic.IsLostDevice())
-			{
+		else [[likely]] {
+			if (m_pyGraphic.IsLostDevice()) [[unlikely]] {
 				CPythonBackground& rkBG = CPythonBackground::Instance();
 				rkBG.ReleaseCharacterShadowTexture();
 
@@ -549,22 +539,11 @@ bool CPythonApplication::Process()
 			}
 		}
 
-		if (!IsActive())
-		{
-			SkipRenderBuffering(3000);
-		}
-
-		// ¸®½ºÅä¾î Ã³¸®¶§¸¦ °í·ÁÇØ ÀÏÁ¤ ½Ã°£µ¿¾ÈÀº ¹öÆÛ¸µÀ» ÇÏÁö ¾Ê´Â´Ù
-		if (!canRender)
-		{
-			SkipRenderBuffering(3000);
-		}
-		else
+		if (canRender) [[likely]]
 		{
 			// RestoreLostDevice
 			CCullingManager::Instance().Update();
-			if (m_pyGraphic.Begin())
-			{
+			if (m_pyGraphic.Begin()) [[likely]] {
 
 				m_pyGraphic.ClearDepthBuffer();
 
@@ -597,8 +576,7 @@ bool CPythonApplication::Process()
 				s_dwRenderRangeTime += m_dwCurRenderTime;				
 				++s_dwRenderRangeFrame;			
 
-				if (dwRenderEndTime-s_dwRenderCheckTime>1000)
-				{
+				if (dwRenderEndTime-s_dwRenderCheckTime>1000) [[unlikely]] {
 					m_fAveRenderTime=float(double(s_dwRenderRangeTime)/double(s_dwRenderRangeFrame));
 
 					s_dwRenderCheckTime=ELTimer_GetMSec();
@@ -612,52 +590,6 @@ bool CPythonApplication::Process()
 
 				if (dwCurFaceCount > 5000)
 				{
-					// ÇÁ·¹ÀÓ ¿ÏÃæ Ã³¸®
-					if (dwRenderEndTime > m_dwBufSleepSkipTime)
-					{	
-						static float s_fBufRenderTime = 0.0f;
-
-						float fCurRenderTime = m_dwCurRenderTime;
-
-						if (fCurRenderTime > s_fBufRenderTime)
-						{
-							float fRatio = fMAX(0.5f, (fCurRenderTime - s_fBufRenderTime) / 30.0f);
-							s_fBufRenderTime = (s_fBufRenderTime * (100.0f - fRatio) + (fCurRenderTime + 5) * fRatio) / 100.0f;
-						}
-						else
-						{
-							float fRatio = 0.5f;
-							s_fBufRenderTime = (s_fBufRenderTime * (100.0f - fRatio) + fCurRenderTime * fRatio) / 100.0f;
-						}
-
-						// ÇÑ°èÄ¡¸¦ Á¤ÇÑ´Ù
-						if (s_fBufRenderTime > 100.0f)
-							s_fBufRenderTime = 100.0f;
-
-						DWORD dwBufRenderTime = s_fBufRenderTime;
-
-						if (m_isWindowed)
-						{						
-							if (dwBufRenderTime>58)
-								dwBufRenderTime=64;
-							else if (dwBufRenderTime>42)
-								dwBufRenderTime=48;
-							else if (dwBufRenderTime>26)
-								dwBufRenderTime=32;
-							else if (dwBufRenderTime>10)
-								dwBufRenderTime=16;
-							else
-								dwBufRenderTime=8;
-						}
-
-						// ÀÏÁ¤ ÇÁ·¹ÀÓ ¼Óµµ¿¡ ¸ÂÃß¾îÁÖ´ÂÂÊ¿¡ ´«¿¡ ÆíÇÏ´Ù
-						// ¾Æ·¡¿¡¼­ ÇÑ¹ø ÇÏ¸é ç´?
-						//if (m_dwCurRenderTime<dwBufRenderTime)
-						//	Sleep(dwBufRenderTime-m_dwCurRenderTime);			
-
-						m_fAveRenderTime=s_fBufRenderTime;
-					}
-
 					m_dwFaceAccCount += dwCurFaceCount;
 					m_dwFaceAccTime += m_dwCurRenderTime;
 

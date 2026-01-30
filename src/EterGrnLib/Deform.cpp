@@ -144,10 +144,10 @@ void DeformPWNT3432toGrannyPNGBT33332(granny_int32x Count, void const* SourceIni
 	granny_int32x const* TransformTable, granny_matrix_4x4 const* Transforms,
 	granny_int32x CopySize, granny_int32x SourceStride, granny_int32x DestStride)
 {
-	if (TransformTable) {
+	if (TransformTable) [[likely]] {
 		DeformPWNT3432toGrannyPNGBT33332I(Count, SourceInit, DestInit, TransformTable, Transforms, CopySize, SourceStride, DestStride);
 	}
-	else {
+	else [[unlikely]] {
 		DeformPWNT3432toGrannyPNGBT33332D(Count, SourceInit, DestInit, Transforms, CopySize, SourceStride, DestStride);
 	}
 }
