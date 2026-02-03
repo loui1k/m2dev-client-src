@@ -5,12 +5,23 @@
 
 #include <zstd.h>
 #include <argparse.hpp>
+#include <sodium.h>
 
 #include "PackLib/config.h"
+
+static void EncryptData(uint8_t* data, size_t len, const uint8_t* nonce)
+{
+	crypto_stream_xchacha20_xor(data, data, len, nonce, PACK_KEY.data());
+}
 
 int main(int argc, char* argv[])
 {
 	std::setlocale(LC_ALL, "en_US.UTF-8");
+
+	if (sodium_init() < 0) {
+		std::cerr << "Failed to initialize libsodium" << std::endl;
+		return EXIT_FAILURE;
+	}
 
 	argparse::ArgumentParser program("PackMaker");
 
@@ -54,7 +65,7 @@ int main(int argc, char* argv[])
 			continue;
 
 		std::filesystem::path relative_path = std::filesystem::relative(entry.path(), input);
-		
+
 		TPackFileEntry& file_entry = entries[relative_path];
 		memset(&file_entry, 0, sizeof(file_entry));
 		file_entry.file_size = entry.file_size();
@@ -77,14 +88,10 @@ int main(int argc, char* argv[])
 	header.entry_num = entries.size();
 	header.data_begin = sizeof(TPackFileHeader) + sizeof(TPackFileEntry) * entries.size();
 
-	CryptoPP::AutoSeededRandomPool rnd;
-	rnd.GenerateBlock(header.iv, sizeof(header.iv));
+	randombytes_buf(header.nonce, sizeof(header.nonce));
 
 	ofs.write((const char*) &header, sizeof(header));
 	ofs.seekp(header.data_begin, std::ios::beg);
-
-	CryptoPP::CTR_Mode<CryptoPP::Camellia>::Encryption encryption;
-	encryption.SetKeyWithIV(PACK_KEY.data(), PACK_KEY.size(), header.iv, CryptoPP::Camellia::BLOCKSIZE);
 
 	uint64_t offset = 0;
 	for (auto& [path, entry] : entries) {
@@ -118,9 +125,8 @@ int main(int argc, char* argv[])
 		if (path.has_extension() && path.extension() == ".py") {
 			entry.encryption = 1;
 
-			rnd.GenerateBlock(entry.iv, sizeof(entry.iv));
-			encryption.Resynchronize(entry.iv, sizeof(entry.iv));
-			encryption.ProcessData((uint8_t*)compressed_buffer.data(), (uint8_t*)compressed_buffer.data(), entry.compressed_size);
+			randombytes_buf(entry.nonce, sizeof(entry.nonce));
+			EncryptData((uint8_t*)compressed_buffer.data(), entry.compressed_size, entry.nonce);
 		}
 
 		ofs.write(compressed_buffer.data(), entry.compressed_size);
@@ -128,11 +134,10 @@ int main(int argc, char* argv[])
 	}
 
 	ofs.seekp(sizeof(TPackFileHeader), std::ios::beg);
-	encryption.Resynchronize(header.iv, sizeof(header.iv));
-	
+
 	for (auto& [path, entry] : entries) {
 		TPackFileEntry tmp = entry;
-		encryption.ProcessData((uint8_t*)&tmp, (uint8_t*)&tmp, sizeof(TPackFileEntry));
+		EncryptData((uint8_t*)&tmp, sizeof(TPackFileEntry), header.nonce);
 		ofs.write((const char*)&tmp, sizeof(TPackFileEntry));
 	}
 

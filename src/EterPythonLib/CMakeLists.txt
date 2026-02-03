@@ -2,8 +2,7 @@
 
 add_library(EterPythonLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(EterPythonLib 
-	cryptopp-static
+target_link_libraries(EterPythonLib
 	mio
 )
 

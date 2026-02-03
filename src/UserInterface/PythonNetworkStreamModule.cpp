@@ -407,7 +407,7 @@ PyObject* netSendLoginPacket(PyObject* poSelf, PyObject* poArgs)
 		return Py_BuildException();
 
 	CPythonNetworkStream& rkNetStream=CPythonNetworkStream::Instance();
-	rkNetStream.SendLoginPacket(szName, szPwd);
+	rkNetStream.SendLoginPacketNew(szName, szPwd);
 	return Py_BuildNone();
 }
 

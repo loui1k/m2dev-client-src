@@ -6,12 +6,6 @@
 
 #include <windowsx.h>
 
-#ifndef LSS_SECURITY_KEY
-#define LSS_SECURITY_KEY "testtesttesttest"
-#endif
-
-std::string __SECURITY_KEY_STRING__ = LSS_SECURITY_KEY;
-
 char MULTI_LOCALE_PATH_COMMON[256] = "locale/common";
 char MULTI_LOCALE_PATH[256] = "locale/en";
 char MULTI_LOCALE_NAME[256] = "en";
@@ -98,11 +92,6 @@ int GetSkillPower(unsigned level)
 	};
 
 	return SKILL_POWERS[level];
-}
-
-const char* GetSecurityKey()
-{
-	return __SECURITY_KEY_STRING__.c_str();
 }
 
 const char* GetLocaleName()

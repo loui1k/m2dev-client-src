@@ -2,8 +2,7 @@
 
 add_library(EffectLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(EffectLib 
-	cryptopp-static
+target_link_libraries(EffectLib
 	mio
 )
 

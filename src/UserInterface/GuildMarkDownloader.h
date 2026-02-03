@@ -54,10 +54,8 @@ class CGuildMarkDownloader : public CNetworkStream, public CSingleton<CGuildMark
 		bool __LoginState_RecvMarkIndex();
 		bool __LoginState_RecvMarkBlock();
 		bool __LoginState_RecvSymbolData();
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		bool __LoginState_RecvKeyAgreement();
-		bool __LoginState_RecvKeyAgreementCompleted();
-#endif
+		bool __LoginState_RecvKeyChallenge();
+		bool __LoginState_RecvKeyComplete();
 		bool __SendMarkIDXList();
 		bool __SendMarkCRCList();
 		bool __SendSymbolCRCList();

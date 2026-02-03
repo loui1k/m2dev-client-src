@@ -2,9 +2,6 @@
 #include "PythonNetworkStream.h"
 #include "Packet.h"
 
-extern DWORD g_adwEncryptKey[4];
-extern DWORD g_adwDecryptKey[4];
-
 // Select Character ---------------------------------------------------------------------------
 void CPythonNetworkStream::SetSelectPhase()
 {
@@ -15,11 +12,7 @@ void CPythonNetworkStream::SetSelectPhase()
 	Tracen("## Network - Select Phase ##");
 	Tracen("");
 
-	m_strPhase = "Select";	
-
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-	SetSecurityMode(true, (const char *) g_adwEncryptKey, (const char *) g_adwDecryptKey);
-#endif
+	m_strPhase = "Select";
 
 	m_dwChangingPhaseTime = ELTimer_GetMSec();
 	m_phaseProcessFunc.Set(this, &CPythonNetworkStream::SelectPhase);
@@ -103,28 +96,15 @@ void CPythonNetworkStream::SelectPhase()
 			return;
 			break;
 
-		case HEADER_GC_HYBRIDCRYPT_KEYS:
-			RecvHybridCryptKeyPacket();
+		case HEADER_GC_KEY_CHALLENGE:
+			RecvKeyChallenge();
 			return;
 			break;
 
-		case HEADER_GC_HYBRIDCRYPT_SDB:
-			RecvHybridCryptSDBPacket();
+		case HEADER_GC_KEY_COMPLETE:
+			RecvKeyComplete();
 			return;
 			break;
-
-
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		case HEADER_GC_KEY_AGREEMENT:
-			RecvKeyAgreementPacket();
-			return;
-			break;
-
-		case HEADER_GC_KEY_AGREEMENT_COMPLETED:
-			RecvKeyAgreementCompletedPacket();
-			return;
-			break;
-#endif
 
 		case HEADER_GC_PLAYER_POINT_CHANGE:
 			TPacketGCPointChange PointChange;

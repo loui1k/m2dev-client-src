@@ -33,6 +33,7 @@ endif()
 add_compile_options(
 	$<$<CXX_COMPILER_ID:MSVC>:/wd4828>
 	$<$<CXX_COMPILER_ID:MSVC>:/wd4996>
+	$<$<CXX_COMPILER_ID:MSVC>:/wd5033>
 )
 
 # ASan flags
@@ -65,6 +66,7 @@ add_compile_definitions("$<$<CONFIG:Release>:_DISTRIBUTE>")
 
 include_directories("src")
 include_directories("extern/include")
+include_directories("vendor/libsodium/src/libsodium/include")
 
 # Add subdirectories for libraries and executables
 add_subdirectory(vendor)

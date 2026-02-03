@@ -272,13 +272,11 @@ bool CGuildMarkUploader::__LoginState_Process()
 	if (!__AnalyzePacket(HEADER_GC_PING, sizeof(TPacketGCPing), &CGuildMarkUploader::__LoginState_RecvPing))
 		return false;
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-	if (!__AnalyzePacket(HEADER_GC_KEY_AGREEMENT, sizeof(TPacketKeyAgreement), &CGuildMarkUploader::__LoginState_RecvKeyAgreement))
+	if (!__AnalyzePacket(HEADER_GC_KEY_CHALLENGE, sizeof(TPacketGCKeyChallenge), &CGuildMarkUploader::__LoginState_RecvKeyChallenge))
 		return false;
 
-	if (!__AnalyzePacket(HEADER_GC_KEY_AGREEMENT_COMPLETED, sizeof(TPacketKeyAgreementCompleted), &CGuildMarkUploader::__LoginState_RecvKeyAgreementCompleted))
+	if (!__AnalyzePacket(HEADER_GC_KEY_COMPLETE, sizeof(TPacketGCKeyComplete), &CGuildMarkUploader::__LoginState_RecvKeyComplete))
 		return false;
-#endif
 
 	return true;
 }
@@ -330,11 +328,6 @@ bool CGuildMarkUploader::__LoginState_RecvPhase()
 
 	if (kPacketPhase.phase==PHASE_LOGIN)
 	{
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-		const char* key = GetSecurityKey();
-		SetSecurityMode(true, key);
-#endif
-
 		if (SEND_TYPE_MARK == m_dwSendType)
 		{
 			if (!__SendMarkPacket())
@@ -384,66 +377,63 @@ bool CGuildMarkUploader::__LoginState_RecvPing()
 	return true;
 }
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-bool CGuildMarkUploader::__LoginState_RecvKeyAgreement()
+bool CGuildMarkUploader::__LoginState_RecvKeyChallenge()
 {
-	TPacketKeyAgreement packet;
+	TPacketGCKeyChallenge packet;
 	if (!Recv(sizeof(packet), &packet))
-	{
 		return false;
-	}
 
-	Tracenf("KEY_AGREEMENT RECV %u", packet.wDataLength);
+	Tracen("KEY_CHALLENGE RECV");
 
-	TPacketKeyAgreement packetToSend;
-	size_t dataLength = TPacketKeyAgreement::MAX_DATA_LEN;
-	size_t agreedLength = Prepare(packetToSend.data, &dataLength);
-	if (agreedLength == 0)
+	SecureCipher& cipher = GetSecureCipher();
+	if (!cipher.Initialize())
 	{
-		// 초기화 실패
 		Disconnect();
 		return false;
 	}
-	assert(dataLength <= TPacketKeyAgreement::MAX_DATA_LEN);
 
-	if (Activate(packet.wAgreedLength, packet.data, packet.wDataLength))
+	if (!cipher.ComputeClientKeys(packet.server_pk))
 	{
-		// Key agreement 성공, 응답 전송
-		packetToSend.bHeader = HEADER_CG_KEY_AGREEMENT;
-		packetToSend.wAgreedLength = (WORD)agreedLength;
-		packetToSend.wDataLength = (WORD)dataLength;
-
-		if (!Send(sizeof(packetToSend), &packetToSend))
-		{
-			Tracen(" CAccountConnector::__AuthState_RecvKeyAgreement - SendKeyAgreement Error");
-			return false;
-		}
-		Tracenf("KEY_AGREEMENT SEND %u", packetToSend.wDataLength);
-	}
-	else
-	{
-		// 키 협상 실패
 		Disconnect();
 		return false;
 	}
+
+	TPacketCGKeyResponse response;
+	response.bHeader = HEADER_CG_KEY_RESPONSE;
+	cipher.GetPublicKey(response.client_pk);
+	cipher.ComputeResponse(packet.challenge, response.challenge_response);
+
+	if (!Send(sizeof(response), &response))
+		return false;
+
+	Tracen("KEY_RESPONSE SENT");
 	return true;
 }
 
-bool CGuildMarkUploader::__LoginState_RecvKeyAgreementCompleted()
+bool CGuildMarkUploader::__LoginState_RecvKeyComplete()
 {
-	TPacketKeyAgreementCompleted packet;
+	TPacketGCKeyComplete packet;
 	if (!Recv(sizeof(packet), &packet))
+		return false;
+
+	Tracen("KEY_COMPLETE RECV");
+
+	SecureCipher& cipher = GetSecureCipher();
+
+	uint8_t session_token[SecureCipher::SESSION_TOKEN_SIZE];
+	if (!cipher.DecryptToken(packet.encrypted_token, sizeof(packet.encrypted_token),
+	                          packet.nonce, session_token))
 	{
+		Disconnect();
 		return false;
 	}
 
-	Tracenf("KEY_AGREEMENT_COMPLETED RECV");
+	cipher.SetSessionToken(session_token);
+	cipher.SetActivated(true);
 
-	ActivateCipher();
-
+	Tracen("SECURE CIPHER ACTIVATED");
 	return true;
 }
-#endif // _IMPROVED_PACKET_ENCRYPTION_
 
 bool CGuildMarkUploader::__AnalyzePacket(UINT uHeader, UINT uPacketSize, bool (CGuildMarkUploader::*pfnDispatchPacket)())
 {

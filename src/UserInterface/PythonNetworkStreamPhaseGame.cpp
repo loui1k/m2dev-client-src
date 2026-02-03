@@ -598,29 +598,16 @@ void CPythonNetworkStream::GamePhase()
 				RecvHandshakeOKPacket();
 				return;
 				break;
-			
-			case HEADER_GC_HYBRIDCRYPT_KEYS:
-				RecvHybridCryptKeyPacket();
+
+			case HEADER_GC_KEY_CHALLENGE:
+				RecvKeyChallenge();
 				return;
 				break;
 
-			case HEADER_GC_HYBRIDCRYPT_SDB:
-				RecvHybridCryptSDBPacket();
+			case HEADER_GC_KEY_COMPLETE:
+				RecvKeyComplete();
 				return;
 				break;
-
-
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-			case HEADER_GC_KEY_AGREEMENT:
-				RecvKeyAgreementPacket();
-				return;
-				break;
-
-			case HEADER_GC_KEY_AGREEMENT_COMPLETED:
-				RecvKeyAgreementCompletedPacket();
-				return;
-				break;
-#endif
 
 			case HEADER_GC_SPECIFIC_EFFECT:
 				ret = RecvSpecificEffect();

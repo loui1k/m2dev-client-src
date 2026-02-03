@@ -2,9 +2,8 @@
 
 add_library(GameLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(GameLib 
+target_link_libraries(GameLib
 	lzo2
-	cryptopp-static
 	mio
 )
 

@@ -2,7 +2,6 @@
 #include "PythonNetworkStream.h"
 #include "PythonApplication.h"
 #include "Packet.h"
-#include "PackLib/PackManager.h"
 
 // HandShake ---------------------------------------------------------------------------
 void CPythonNetworkStream::HandShakePhase()
@@ -22,7 +21,7 @@ void CPythonNetworkStream::HandShakePhase()
 		case HEADER_GC_BINDUDP:
 			{
 				TPacketGCBindUDP BindUDP;
-				
+
 				if (!Recv(sizeof(TPacketGCBindUDP), &BindUDP))
 					return;
 
@@ -39,9 +38,6 @@ void CPythonNetworkStream::HandShakePhase()
 
 				ELTimer_SetServerMSec(m_HandshakeData.dwTime+ m_HandshakeData.lDelta);
 
-				//m_dwBaseServerTime = m_HandshakeData.dwTime+ m_HandshakeData.lDelta;
-				//m_dwBaseClientTime = ELTimer_GetMSec();
-
 				m_HandshakeData.dwTime = m_HandshakeData.dwTime + m_HandshakeData.lDelta + m_HandshakeData.lDelta;
 				m_HandshakeData.lDelta = 0;
 
@@ -57,32 +53,21 @@ void CPythonNetworkStream::HandShakePhase()
 				return;
 			}
 			break;
+
 		case HEADER_GC_PING:
 			RecvPingPacket();
 			return;
 			break;
 
-		case HEADER_GC_HYBRIDCRYPT_KEYS:
-			RecvHybridCryptKeyPacket();
+		case HEADER_GC_KEY_CHALLENGE:
+			RecvKeyChallenge();
 			return;
 			break;
 
-		case HEADER_GC_HYBRIDCRYPT_SDB:
-			RecvHybridCryptSDBPacket();
+		case HEADER_GC_KEY_COMPLETE:
+			RecvKeyComplete();
 			return;
 			break;
-
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		case HEADER_GC_KEY_AGREEMENT:
-			RecvKeyAgreementPacket();
-			return;
-			break;
-
-		case HEADER_GC_KEY_AGREEMENT_COMPLETED:
-			RecvKeyAgreementCompletedPacket();
-			return;
-			break;
-#endif
 	}
 
 	RecvErrorPacket(header);
@@ -107,7 +92,6 @@ void CPythonNetworkStream::SetHandShakePhase()
 
 	if (__DirectEnterMode_IsSet())
 	{
-		// None
 	}
 	else
 	{
@@ -125,7 +109,7 @@ bool CPythonNetworkStream::RecvHandshakePacket()
 
 	m_kServerTimeSync.m_dwChangeServerTime = kHandshakeData.dwTime + kHandshakeData.lDelta;
 	m_kServerTimeSync.m_dwChangeClientTime = ELTimer_GetMSec();
-	
+
 	kHandshakeData.dwTime = kHandshakeData.dwTime + kHandshakeData.lDelta + kHandshakeData.lDelta;
 	kHandshakeData.lDelta = 0;
 
@@ -157,103 +141,71 @@ bool CPythonNetworkStream::RecvHandshakeOKPacket()
 	return true;
 }
 
-bool CPythonNetworkStream::RecvHybridCryptKeyPacket()
+// Secure key exchange handlers (libsodium/XChaCha20-Poly1305)
+bool CPythonNetworkStream::RecvKeyChallenge()
 {
-	int iFixedHeaderSize = TPacketGCHybridCryptKeys::GetFixedHeaderSize();
-
-	TDynamicSizePacketHeader header;
-	if( !Peek( sizeof(header), &header) )
-		return false;
-
-	TPacketGCHybridCryptKeys kPacket(header.size-iFixedHeaderSize);
-
-	if (!Recv(iFixedHeaderSize, &kPacket))
-		return false;
-
-	if (!Recv(kPacket.iKeyStreamLen, kPacket.m_pStream))
-		return false;
-
-	return true;
-}
-
-bool CPythonNetworkStream::RecvHybridCryptSDBPacket()
-{
-	int iFixedHeaderSize = TPacketGCHybridSDB::GetFixedHeaderSize();
-
-	TDynamicSizePacketHeader header;
-	if( !Peek( sizeof(header), &header) )
-		return false;
-
-	TPacketGCHybridSDB kPacket(header.size-iFixedHeaderSize);
-
-	if (!Recv(iFixedHeaderSize, &kPacket))
-		return false;
-
-	if (!Recv(kPacket.iSDBStreamLen, kPacket.m_pStream))
-		return false;
-
-	return true;
-}
-
-
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-bool CPythonNetworkStream::RecvKeyAgreementPacket()
-{
-	TPacketKeyAgreement packet;
+	TPacketGCKeyChallenge packet;
 	if (!Recv(sizeof(packet), &packet))
 	{
 		return false;
 	}
 
-	Tracenf("KEY_AGREEMENT RECV %u", packet.wDataLength);
+	Tracen("SECURE KEY_CHALLENGE RECV");
 
-	TPacketKeyAgreement packetToSend;
-	size_t dataLength = TPacketKeyAgreement::MAX_DATA_LEN;
-	size_t agreedLength = Prepare(packetToSend.data, &dataLength);
-	if (agreedLength == 0)
+	SecureCipher& cipher = GetSecureCipher();
+	if (!cipher.Initialize())
 	{
-		// 초기화 실패
+		TraceError("Failed to initialize SecureCipher");
 		Disconnect();
 		return false;
 	}
-	assert(dataLength <= TPacketKeyAgreement::MAX_DATA_LEN);
 
-	if (Activate(packet.wAgreedLength, packet.data, packet.wDataLength))
+	if (!cipher.ComputeClientKeys(packet.server_pk))
 	{
-		// Key agreement 성공, 응답 전송
-		packetToSend.bHeader = HEADER_CG_KEY_AGREEMENT;
-		packetToSend.wAgreedLength = (WORD)agreedLength;
-		packetToSend.wDataLength = (WORD)dataLength;
-
-		if (!Send(sizeof(packetToSend), &packetToSend))
-		{
-			assert(!"Failed Sending KeyAgreement");
-			return false;
-		}
-		Tracenf("KEY_AGREEMENT SEND %u", packetToSend.wDataLength);
-	}
-	else
-	{
-		// 키 협상 실패
+		TraceError("Failed to compute client session keys");
 		Disconnect();
 		return false;
 	}
+
+	TPacketCGKeyResponse response;
+	response.bHeader = HEADER_CG_KEY_RESPONSE;
+	cipher.GetPublicKey(response.client_pk);
+	cipher.ComputeChallengeResponse(packet.challenge, response.challenge_response);
+
+	if (!Send(sizeof(response), &response))
+	{
+		TraceError("Failed to send KeyResponse");
+		return false;
+	}
+
+	Tracen("SECURE KEY_RESPONSE SENT");
 	return true;
 }
 
-bool CPythonNetworkStream::RecvKeyAgreementCompletedPacket()
+bool CPythonNetworkStream::RecvKeyComplete()
 {
-	TPacketKeyAgreementCompleted packet;
+	TPacketGCKeyComplete packet;
 	if (!Recv(sizeof(packet), &packet))
 	{
 		return false;
 	}
 
-	Tracenf("KEY_AGREEMENT_COMPLETED RECV");
+	Tracen("SECURE KEY_COMPLETE RECV");
 
-	ActivateCipher();
-	DecryptAlreadyReceivedData();
+	SecureCipher& cipher = GetSecureCipher();
 
+	uint8_t decrypted_token[SecureCipher::SESSION_TOKEN_SIZE];
+	if (!cipher.DecryptToken(packet.encrypted_token, sizeof(packet.encrypted_token),
+	                          packet.nonce, decrypted_token))
+	{
+		TraceError("Failed to decrypt session token");
+		Disconnect();
+		return false;
+	}
+
+	cipher.SetSessionToken(decrypted_token);
+	cipher.SetActivated(true);
+
+	Tracen("SECURE CIPHER ACTIVATED");
 	return true;
 }
-#endif // _IMPROVED_PACKET_ENCRYPTION_

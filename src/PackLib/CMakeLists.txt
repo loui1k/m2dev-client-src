@@ -2,9 +2,9 @@
 
 add_library(PackLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(PackLib 
+target_link_libraries(PackLib
 	libzstd_static
-	cryptopp-static
+	sodium
 	mio
 )
 

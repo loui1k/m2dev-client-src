@@ -24,8 +24,7 @@ target_link_libraries(UserInterface
 	SpeedTreeLib
 	SphereLib
 	PackLib
-	
-	cryptopp-static
+
 	lzo2
 	libzstd_static
 	mio

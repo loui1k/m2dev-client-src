@@ -47,13 +47,13 @@ void CPythonNetworkStream::LoginPhase()
 				return;
 			break;
 
-		case HEADER_GC_HYBRIDCRYPT_KEYS:
-			RecvHybridCryptKeyPacket();
+		case HEADER_GC_KEY_CHALLENGE:
+			RecvKeyChallenge();
 			return;
 			break;
 
-		case HEADER_GC_HYBRIDCRYPT_SDB:
-			RecvHybridCryptSDBPacket();
+		case HEADER_GC_KEY_COMPLETE:
+			RecvKeyComplete();
 			return;
 			break;
 
@@ -68,11 +68,6 @@ void CPythonNetworkStream::LoginPhase()
 
 void CPythonNetworkStream::SetLoginPhase()
 {
-	const char* key = GetSecurityKey();
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-	SetSecurityMode(true, key);
-#endif
-
 	if ("Login" != m_strPhase)
 		m_phaseLeaveFunc.Run();
 
@@ -87,26 +82,25 @@ void CPythonNetworkStream::SetLoginPhase()
 
 	m_dwChangingPhaseTime = ELTimer_GetMSec();
 
+	if (0 == m_dwLoginKey)
+	{
+		TraceError("SetLoginPhase: no login key - cannot login without auth server");
+		ClearLoginInfo();
+		return;
+	}
+
 	if (__DirectEnterMode_IsSet())
 	{
-		if (0 != m_dwLoginKey)
-			SendLoginPacketNew(m_stID.c_str(), m_stPassword.c_str());
-		else
-			SendLoginPacket(m_stID.c_str(), m_stPassword.c_str());
+		SendLoginPacketNew(m_stID.c_str(), m_stPassword.c_str());
 
-		// 비밀번호를 메모리에 계속 갖고 있는 문제가 있어서, 사용 즉시 날리는 것으로 변경
 		ClearLoginInfo();
 		CAccountConnector & rkAccountConnector = CAccountConnector::Instance();
 		rkAccountConnector.ClearLoginInfo();
 	}
 	else
 	{
-		if (0 != m_dwLoginKey)
-			SendLoginPacketNew(m_stID.c_str(), m_stPassword.c_str());
-		else
-			SendLoginPacket(m_stID.c_str(), m_stPassword.c_str());
+		SendLoginPacketNew(m_stID.c_str(), m_stPassword.c_str());
 
-		// 비밀번호를 메모리에 계속 갖고 있는 문제가 있어서, 사용 즉시 날리는 것으로 변경
 		ClearLoginInfo();
 		CAccountConnector & rkAccountConnector = CAccountConnector::Instance();
 		rkAccountConnector.ClearLoginInfo();
@@ -208,43 +202,6 @@ bool CPythonNetworkStream::__RecvLoginFailurePacket()
 	return true;
 }
 
-bool CPythonNetworkStream::SendDirectEnterPacket(const char* c_szID, const char* c_szPassword, UINT uChrSlot)
-{
-	TPacketCGDirectEnter kPacketDirectEnter;
-	kPacketDirectEnter.bHeader=HEADER_CG_DIRECT_ENTER;
-	kPacketDirectEnter.index=uChrSlot;
-	strncpy(kPacketDirectEnter.login, c_szID, ID_MAX_NUM);
-	strncpy(kPacketDirectEnter.passwd, c_szPassword, PASS_MAX_NUM);
-
-	if (!Send(sizeof(kPacketDirectEnter), &kPacketDirectEnter))
-	{
-		Tracen("SendDirectEnter");
-		return false;
-	}
-
-	return SendSequence();
-}
-
-bool CPythonNetworkStream::SendLoginPacket(const char* c_szName, const char* c_szPassword)
-{
-	TPacketCGLogin LoginPacket;
-	LoginPacket.header = HEADER_CG_LOGIN;
-
-	strncpy(LoginPacket.name, c_szName, sizeof(LoginPacket.name)-1);
-	strncpy(LoginPacket.pwd, c_szPassword, sizeof(LoginPacket.pwd)-1);
-
-	LoginPacket.name[ID_MAX_NUM]='\0';
-	LoginPacket.pwd[PASS_MAX_NUM]='\0';
-
-	if (!Send(sizeof(LoginPacket), &LoginPacket))
-	{
-		Tracen("SendLogin Error");
-		return false;
-	}
-
-	return SendSequence();
-}
-
 bool CPythonNetworkStream::SendLoginPacketNew(const char * c_szName, const char * c_szPassword)
 {
 	TPacketCGLogin2 LoginPacket;
@@ -253,11 +210,6 @@ bool CPythonNetworkStream::SendLoginPacketNew(const char * c_szName, const char 
 
 	strncpy(LoginPacket.name, c_szName, sizeof(LoginPacket.name)-1);
 	LoginPacket.name[ID_MAX_NUM]='\0';
-
-	extern DWORD g_adwEncryptKey[4];
-	extern DWORD g_adwDecryptKey[4];
-	for (DWORD i = 0; i < 4; ++i)
-		LoginPacket.adwClientKey[i] = g_adwEncryptKey[i];
 
 	if (!Send(sizeof(LoginPacket), &LoginPacket))
 	{
@@ -273,9 +225,6 @@ bool CPythonNetworkStream::SendLoginPacketNew(const char * c_szName, const char 
 
 	__SendInternalBuffer();
 
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-	SetSecurityMode(true, (const char *) g_adwEncryptKey, (const char *) g_adwDecryptKey);
-#endif
 	return true;
 }
 

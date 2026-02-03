@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <utf8.h>
+#include <sodium.h>
 
 extern "C" {
 	extern int _fltused;
@@ -289,6 +290,12 @@ static bool Main(HINSTANCE hInstance, LPSTR lpCmdLine)
 #else
 	OpenLogFile(false); // false == uses syserr.txt only
 #endif
+
+	if (sodium_init() < 0)
+	{
+		LogBox("sodium_init() failed");
+		return false;
+	}
 
 	static CLZO lzo;
 	CPackManager packMgr;

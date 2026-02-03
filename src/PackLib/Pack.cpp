@@ -13,11 +13,16 @@ static ZSTD_DCtx* GetThreadLocalZSTDContext()
 	return g_zstdDCtx;
 }
 
+void CPack::DecryptData(uint8_t* data, size_t len, const uint8_t* nonce)
+{
+	crypto_stream_xchacha20_xor(data, data, len, nonce, PACK_KEY.data());
+}
+
 bool CPack::Load(const std::string& path)
 {
 	std::error_code ec;
 	m_file.map(path, ec);
-	
+
 	if (ec) {
 		return false;
 	}
@@ -28,7 +33,6 @@ bool CPack::Load(const std::string& path)
 	}
 
 	memcpy(&m_header, m_file.data(), sizeof(TPackFileHeader));
-	m_decryption.SetKeyWithIV(PACK_KEY.data(), PACK_KEY.size(), m_header.iv, CryptoPP::Camellia::BLOCKSIZE);
 
 	if (file_size < sizeof(TPackFileHeader) + m_header.entry_num * sizeof(TPackFileEntry)) {
 		return false;
@@ -39,7 +43,7 @@ bool CPack::Load(const std::string& path)
 	for (size_t i = 0; i < m_header.entry_num; i++) {
 		TPackFileEntry& entry = m_index[i];
 		memcpy(&entry, m_file.data() + sizeof(TPackFileHeader) + i * sizeof(TPackFileEntry), sizeof(TPackFileEntry));
-		m_decryption.ProcessData((CryptoPP::byte*)&entry, (CryptoPP::byte*)&entry, sizeof(TPackFileEntry));
+		DecryptData((uint8_t*)&entry, sizeof(TPackFileEntry), m_header.nonce);
 
 		if (file_size < m_header.data_begin + entry.offset + entry.compressed_size) {
 			return false;
@@ -79,8 +83,7 @@ bool CPack::GetFileWithPool(const TPackFileEntry& entry, TPackFile& result, CBuf
 
 			memcpy(compressed_data.data(), m_file.data() + offset, entry.compressed_size);
 
-			m_decryption.Resynchronize(entry.iv, sizeof(entry.iv));
-			m_decryption.ProcessData(compressed_data.data(), compressed_data.data(), entry.compressed_size);
+			DecryptData(compressed_data.data(), entry.compressed_size, entry.nonce);
 
 			size_t decompressed_size = ZSTD_decompressDCtx(dctx, result.data(), result.size(), compressed_data.data(), compressed_data.size());
 

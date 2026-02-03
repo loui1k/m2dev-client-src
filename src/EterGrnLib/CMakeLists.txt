@@ -2,8 +2,7 @@
 
 add_library(EterGrnLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(EterGrnLib 
-	cryptopp-static
+target_link_libraries(EterGrnLib
 	mio
 )
 

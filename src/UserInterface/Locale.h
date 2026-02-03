@@ -5,8 +5,6 @@
 const char* GetLocaleName();
 const char* GetLocalePath();
 const char* GetLocalePathCommon();
-const char* GetSecurityKey();
-
 bool IsRTL();
 int StringCompareCI( LPCSTR szStringLeft, LPCSTR szStringRight, size_t sizeLength );
 void LoadConfig(const char* fileName);

@@ -2,9 +2,9 @@
 
 add_library(EterBase STATIC ${FILE_SOURCES})
 
-target_link_libraries(EterBase 
+target_link_libraries(EterBase
 	lzo2
-	cryptopp-static
+	sodium
 	mio
 )
 

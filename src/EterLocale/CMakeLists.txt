@@ -2,8 +2,7 @@
 
 add_library(EterLocale STATIC ${FILE_SOURCES})
 
-target_link_libraries(EterLocale 
-	cryptopp-static
+target_link_libraries(EterLocale
 	mio
 )
 

@@ -2,8 +2,8 @@
 
 add_library(EterLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(EterLib 
-	cryptopp-static
+target_link_libraries(EterLib
+	sodium
 	mio
 )
 

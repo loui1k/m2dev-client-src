@@ -1,9 +1,6 @@
 #pragma once
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-#include "EterBase/cipher.h"
-#endif
-#include "EterBase/tea.h"
+#include "EterBase/SecureCipher.h"
 #include "NetAddress.h"
 
 #include <pcg_random.hpp>
@@ -14,15 +11,11 @@ class CNetworkStream
 {
 	public:
 		CNetworkStream();
-		virtual ~CNetworkStream();		
+		virtual ~CNetworkStream();
 
 		void SetRecvBufferSize(int recvBufSize);
 		void SetSendBufferSize(int sendBufSize);
 
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-		void SetSecurityMode(bool isSecurityMode, const char* c_szTeaKey);
-		void SetSecurityMode(bool isSecurityMode, const char* c_szTeaEncryptKey, const char* c_szTeaDecryptKey);
-#endif
 		bool IsSecurityMode();
 
 		int	GetRecvBufferSize();
@@ -55,11 +48,11 @@ class CNetworkStream
 		bool SendSequence();
 		uint8_t GetNextSequence();
 
-	protected:			
-		virtual void OnConnectSuccess();				
+	protected:
+		virtual void OnConnectSuccess();
 		virtual void OnConnectFailure();
 		virtual void OnRemoteDisconnect();
-		virtual void OnDisconnect();		
+		virtual void OnDisconnect();
 		virtual bool OnProcess();
 
 		bool __SendInternalBuffer();
@@ -69,19 +62,13 @@ class CNetworkStream
 
 		int __GetSendBufferSize();
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		size_t Prepare(void* buffer, size_t* length);
-		bool Activate(size_t agreed_length, const void* buffer, size_t length);
-		void ActivateCipher();
-		void DecryptAlreadyReceivedData();
-#endif
+		// Secure cipher methods (libsodium)
+		SecureCipher& GetSecureCipher() { return m_secureCipher; }
+		bool IsSecureCipherActivated() const { return m_secureCipher.IsActivated(); }
+		void ActivateSecureCipher() { m_secureCipher.SetActivated(true); }
 
 	private:
 		time_t	m_connectLimitTime;
-
-		char*	m_recvTEABuf;
-		int		m_recvTEABufInputPos;
-		int		m_recvTEABufSize;
 
 		char*	m_recvBuf;
 		int		m_recvBufSize;
@@ -93,20 +80,10 @@ class CNetworkStream
 		int		m_sendBufInputPos;
 		int		m_sendBufOutputPos;
 
-		char*	m_sendTEABuf;
-		int		m_sendTEABufSize;
-		int		m_sendTEABufInputPos;
-
 		bool	m_isOnline;
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		Cipher	m_cipher;
-#else
-		// Obsolete encryption stuff here
-		bool	m_isSecurityMode;
-		char	m_szEncryptKey[TEA_KEY_LENGTH]; // Client 에서 보낼 패킷을 Encrypt 할때 사용하는 Key
-		char	m_szDecryptKey[TEA_KEY_LENGTH]; // Server 에서 전송된 패킷을 Decrypt 할때 사용하는 Key
-#endif
+		// Secure cipher (libsodium/XChaCha20-Poly1305)
+		SecureCipher m_secureCipher;
 
 		SOCKET	m_sock;
 

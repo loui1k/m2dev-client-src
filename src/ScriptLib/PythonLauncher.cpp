@@ -36,25 +36,40 @@ void Traceback()
 		str.append(g_stTraceBuffer[i]);
 		str.append("\n");
 	}
-	
+
 	PyObject * exc;
 	PyObject * v;
 	PyObject * tb;
-	const char * errStr;
 
 	PyErr_Fetch(&exc, &v, &tb);
+	PyErr_NormalizeException(&exc, &v, &tb);
 
-	if (PyString_Check(v))
+	if (exc)
 	{
-		errStr = PyString_AS_STRING(v);
-		str.append("Error: ");
-		str.append(errStr);
-
-		Tracef("%s\n", errStr);
+		PyObject* excName = PyObject_GetAttrString(exc, "__name__");
+		if (excName && PyString_Check(excName))
+		{
+			str.append(PyString_AS_STRING(excName));
+			str.append(": ");
+		}
+		Py_XDECREF(excName);
 	}
-	Py_DECREF(exc);
-	Py_DECREF(v);
-	Py_DECREF(tb);
+
+	if (v)
+	{
+		PyObject* vStr = PyObject_Str(v);
+		if (vStr && PyString_Check(vStr))
+		{
+			const char* errStr = PyString_AS_STRING(vStr);
+			str.append(errStr);
+			Tracef("%s\n", errStr);
+		}
+		Py_XDECREF(vStr);
+	}
+
+	Py_XDECREF(exc);
+	Py_XDECREF(v);
+	Py_XDECREF(tb);
 	LogBoxf("Traceback:\n\n%s\n", str.c_str());
 }
 
@@ -237,11 +252,41 @@ bool CPythonLauncher::RunFile(const char* c_szFileName)
 {
 	TPackFile file;
 	CPackManager::Instance().GetFile(c_szFileName, file);
-		
+
 	if (file.empty())
 		return false;
-		
-	return RunMemoryTextFile(c_szFileName, file.size(), file.data());
+
+	// Convert \r\n to \n and null-terminate
+	std::string source;
+	source.reserve(file.size());
+	for (size_t i = 0; i < file.size(); ++i)
+	{
+		if (file[i] != '\r')
+			source += (char)file[i];
+	}
+
+	// Compile directly with the filename for proper error reporting
+	PyObject* code = Py_CompileString(source.c_str(), c_szFileName, Py_file_input);
+	if (!code)
+	{
+		Traceback();
+		return false;
+	}
+
+	PyObject* result = PyEval_EvalCode((PyCodeObject*)code, m_poDic, m_poDic);
+	Py_DECREF(code);
+
+	if (!result)
+	{
+		Traceback();
+		return false;
+	}
+
+	Py_DECREF(result);
+	if (Py_FlushLine())
+		PyErr_Clear();
+
+	return true;
 }
 
 bool CPythonLauncher::RunLine(const char* c_szSrc)

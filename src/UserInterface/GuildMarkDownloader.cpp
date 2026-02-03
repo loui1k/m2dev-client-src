@@ -3,7 +3,6 @@
 #include "PythonCharacterManager.h"
 #include "PythonTextTail.h"
 #include "Packet.h"
-#include "PackLib/PackManager.h"
 
 // MARK_BUG_FIX
 struct SMarkIndex
@@ -193,15 +192,12 @@ UINT CGuildMarkDownloader::__GetPacketSize(UINT header)
 			return sizeof(TPacketGCMarkBlock);
 		case HEADER_GC_GUILD_SYMBOL_DATA:
 			return sizeof(TPacketGCGuildSymbolData);
-		case HEADER_GC_MARK_DIFF_DATA:	// 사용하지 않음
+		case HEADER_GC_MARK_DIFF_DATA:
 			return sizeof(BYTE);
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		case HEADER_GC_KEY_AGREEMENT:
-			return sizeof(TPacketKeyAgreement);
-		case HEADER_GC_KEY_AGREEMENT_COMPLETED:
-			return sizeof(TPacketKeyAgreementCompleted);
-
-#endif
+		case HEADER_GC_KEY_CHALLENGE:
+			return sizeof(TPacketGCKeyChallenge);
+		case HEADER_GC_KEY_COMPLETE:
+			return sizeof(TPacketGCKeyComplete);
 	}
 	return 0;
 }
@@ -222,16 +218,14 @@ bool CGuildMarkDownloader::__DispatchPacket(UINT header)
 			return __LoginState_RecvMarkBlock();
 		case HEADER_GC_GUILD_SYMBOL_DATA:
 			return __LoginState_RecvSymbolData();
-		case HEADER_GC_MARK_DIFF_DATA: // 사용하지 않음
+		case HEADER_GC_MARK_DIFF_DATA:
 			return true;
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		case HEADER_GC_KEY_AGREEMENT:
-			return __LoginState_RecvKeyAgreement();
-		case HEADER_GC_KEY_AGREEMENT_COMPLETED:
-			return __LoginState_RecvKeyAgreementCompleted();
-#endif
+		case HEADER_GC_KEY_CHALLENGE:
+			return __LoginState_RecvKeyChallenge();
+		case HEADER_GC_KEY_COMPLETE:
+			return __LoginState_RecvKeyComplete();
 	}
-	return false;	
+	return false;
 }
 // END_OF_MARK_BUG_FIX
 
@@ -279,11 +273,6 @@ bool CGuildMarkDownloader::__LoginState_RecvPhase()
 
 	if (kPacketPhase.phase == PHASE_LOGIN)
 	{
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-		const char* key = GetSecurityKey();
-		SetSecurityMode(true, key);
-#endif
-
 		switch (m_dwTodo)
 		{
 			case TODO_RECV_NONE:
@@ -428,66 +417,63 @@ bool CGuildMarkDownloader::__LoginState_RecvMarkBlock()
 }
 // END_OF_MARK_BUG_FIX
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-bool CGuildMarkDownloader::__LoginState_RecvKeyAgreement()
+bool CGuildMarkDownloader::__LoginState_RecvKeyChallenge()
 {
-	TPacketKeyAgreement packet;
+	TPacketGCKeyChallenge packet;
 	if (!Recv(sizeof(packet), &packet))
-	{
 		return false;
-	}
 
-	Tracenf("KEY_AGREEMENT RECV %u", packet.wDataLength);
+	Tracen("KEY_CHALLENGE RECV");
 
-	TPacketKeyAgreement packetToSend;
-	size_t dataLength = TPacketKeyAgreement::MAX_DATA_LEN;
-	size_t agreedLength = Prepare(packetToSend.data, &dataLength);
-	if (agreedLength == 0)
+	SecureCipher& cipher = GetSecureCipher();
+	if (!cipher.Initialize())
 	{
-		// 초기화 실패
 		Disconnect();
 		return false;
 	}
-	assert(dataLength <= TPacketKeyAgreement::MAX_DATA_LEN);
 
-	if (Activate(packet.wAgreedLength, packet.data, packet.wDataLength))
+	if (!cipher.ComputeClientKeys(packet.server_pk))
 	{
-		// Key agreement 성공, 응답 전송
-		packetToSend.bHeader = HEADER_CG_KEY_AGREEMENT;
-		packetToSend.wAgreedLength = (WORD)agreedLength;
-		packetToSend.wDataLength = (WORD)dataLength;
-
-		if (!Send(sizeof(packetToSend), &packetToSend))
-		{
-			Tracen(" CAccountConnector::__AuthState_RecvKeyAgreement - SendKeyAgreement Error");
-			return false;
-		}
-		Tracenf("KEY_AGREEMENT SEND %u", packetToSend.wDataLength);
-	}
-	else
-	{
-		// 키 협상 실패
 		Disconnect();
 		return false;
 	}
+
+	TPacketCGKeyResponse response;
+	response.bHeader = HEADER_CG_KEY_RESPONSE;
+	cipher.GetPublicKey(response.client_pk);
+	cipher.ComputeResponse(packet.challenge, response.challenge_response);
+
+	if (!Send(sizeof(response), &response))
+		return false;
+
+	Tracen("KEY_RESPONSE SENT");
 	return true;
 }
 
-bool CGuildMarkDownloader::__LoginState_RecvKeyAgreementCompleted()
+bool CGuildMarkDownloader::__LoginState_RecvKeyComplete()
 {
-	TPacketKeyAgreementCompleted packet;
+	TPacketGCKeyComplete packet;
 	if (!Recv(sizeof(packet), &packet))
+		return false;
+
+	Tracen("KEY_COMPLETE RECV");
+
+	SecureCipher& cipher = GetSecureCipher();
+
+	uint8_t session_token[SecureCipher::SESSION_TOKEN_SIZE];
+	if (!cipher.DecryptToken(packet.encrypted_token, sizeof(packet.encrypted_token),
+	                          packet.nonce, session_token))
 	{
+		Disconnect();
 		return false;
 	}
 
-	Tracenf("KEY_AGREEMENT_COMPLETED RECV");
+	cipher.SetSessionToken(session_token);
+	cipher.SetActivated(true);
 
-	ActivateCipher();
-
+	Tracen("SECURE CIPHER ACTIVATED");
 	return true;
 }
-#endif // _IMPROVED_PACKET_ENCRYPTION_
 
 bool CGuildMarkDownloader::__SendSymbolCRCList()
 {

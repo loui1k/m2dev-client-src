@@ -2,13 +2,6 @@
 #include "AccountConnector.h"
 #include "Packet.h"
 #include "PythonNetworkStream.h"
-#include "EterBase/tea.h"
-#include "PackLib/PackManager.h"
-
-// CHINA_CRYPT_KEY
-extern DWORD g_adwEncryptKey[4];
-extern DWORD g_adwDecryptKey[4];
-// END_OF_CHINA_CRYPT_KEY
 
 void CAccountConnector::SetHandler(PyObject* poHandler)
 {
@@ -29,14 +22,9 @@ void CAccountConnector::ClearLoginInfo( void )
 
 bool CAccountConnector::Connect(const char * c_szAddr, int iPort, const char * c_szAccountAddr, int iAccountPort)
 {
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-	__BuildClientKey();
-#endif
-
 	m_strAddr = c_szAddr;
 	m_iPort = iPort;
 	__OfflineState_Set();
-	__BuildClientKey_20050304Myevan();
 
 	return CNetworkStream::Connect(c_szAccountAddr, iAccountPort);
 }
@@ -84,20 +72,11 @@ bool CAccountConnector::__HandshakeState_Process()
 	if (!__AnalyzePacket(HEADER_GC_PING, sizeof(TPacketGCPing), &CAccountConnector::__AuthState_RecvPing))
 		return false;
 
-	//  TODO :  차후 서버와 동일하게 가변길이 data serialize & deserialize  작업해야 한다.
-	if (!__AnalyzeVarSizePacket(HEADER_GC_HYBRIDCRYPT_KEYS, &CAccountConnector::__AuthState_RecvHybridCryptKeys))
+	if (!__AnalyzePacket(HEADER_GC_KEY_CHALLENGE, sizeof(TPacketGCKeyChallenge), &CAccountConnector::__AuthState_RecvKeyChallenge))
 		return false;
 
-	if (!__AnalyzeVarSizePacket(HEADER_GC_HYBRIDCRYPT_SDB, &CAccountConnector::__AuthState_RecvHybridCryptSDB))
+	if (!__AnalyzePacket(HEADER_GC_KEY_COMPLETE, sizeof(TPacketGCKeyComplete), &CAccountConnector::__AuthState_RecvKeyComplete))
 		return false;
-
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-	if (!__AnalyzePacket(HEADER_GC_KEY_AGREEMENT, sizeof(TPacketKeyAgreement), &CAccountConnector::__AuthState_RecvKeyAgreement))
-		return false;
-
-	if (!__AnalyzePacket(HEADER_GC_KEY_AGREEMENT_COMPLETED, sizeof(TPacketKeyAgreementCompleted), &CAccountConnector::__AuthState_RecvKeyAgreementCompleted))
-		return false;
-#endif
 
 	return true;
 }
@@ -122,22 +101,10 @@ bool CAccountConnector::__AuthState_Process()
 	if (!__AnalyzePacket(HEADER_GC_HANDSHAKE, sizeof(TPacketGCHandshake), &CAccountConnector::__AuthState_RecvHandshake))
 		return false;
 
-	if (!__AnalyzePacket(HEADER_GC_PANAMA_PACK, sizeof(TPacketGCPanamaPack), &CAccountConnector::__AuthState_RecvPanamaPack))
+	if (!__AnalyzePacket(HEADER_GC_KEY_CHALLENGE, sizeof(TPacketGCKeyChallenge), &CAccountConnector::__AuthState_RecvKeyChallenge))
 		return false;
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-	if (!__AnalyzePacket(HEADER_GC_KEY_AGREEMENT, sizeof(TPacketKeyAgreement), &CAccountConnector::__AuthState_RecvKeyAgreement))
-		return false;
-
-	if (!__AnalyzePacket(HEADER_GC_KEY_AGREEMENT_COMPLETED, sizeof(TPacketKeyAgreementCompleted), &CAccountConnector::__AuthState_RecvKeyAgreementCompleted))
-		return false;
-#endif
-
-	//  TODO :  차후 서버와 동일하게 가변길이 data serialize & deserialize  작업해야 한다.
-	if (!__AnalyzeVarSizePacket(HEADER_GC_HYBRIDCRYPT_KEYS, &CAccountConnector::__AuthState_RecvHybridCryptKeys))
-		return false;
-
-	if (!__AnalyzeVarSizePacket(HEADER_GC_HYBRIDCRYPT_SDB, &CAccountConnector::__AuthState_RecvHybridCryptSDB))
+	if (!__AnalyzePacket(HEADER_GC_KEY_COMPLETE, sizeof(TPacketGCKeyComplete), &CAccountConnector::__AuthState_RecvKeyComplete))
 		return false;
 
 	return true;
@@ -162,11 +129,6 @@ bool CAccountConnector::__AuthState_RecvPhase()
 	}
 	else if (kPacketPhase.phase == PHASE_AUTH)
 	{
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-		const char* key = GetSecurityKey();
-		SetSecurityMode(true, key);
-#endif
-
 		TPacketCGLogin3 LoginPacket;
 		LoginPacket.header = HEADER_CG_LOGIN3;
 
@@ -175,15 +137,11 @@ bool CAccountConnector::__AuthState_RecvPhase()
 		LoginPacket.name[ID_MAX_NUM] = '\0';
 		LoginPacket.pwd[PASS_MAX_NUM] = '\0';
 
-		// 비밀번호를 메모리에 계속 갖고 있는 문제가 있어서, 사용 즉시 날리는 것으로 변경
 		ClearLoginInfo();
 		CPythonNetworkStream& rkNetStream=CPythonNetworkStream::Instance();
 		rkNetStream.ClearLoginInfo();
 
 		m_strPassword = "";
-
-		for (DWORD i = 0; i < 4; ++i)
-			LoginPacket.adwClientKey[i] = g_adwEncryptKey[i];
 
 		if (!Send(sizeof(LoginPacket), &LoginPacket))
 		{
@@ -208,70 +166,92 @@ bool CAccountConnector::__AuthState_RecvHandshake()
 	if (!Recv(sizeof(kPacketHandshake), &kPacketHandshake))
 		return false;
 
-	// HandShake
+	Tracenf("HANDSHAKE RECV %u %d", kPacketHandshake.dwTime, kPacketHandshake.lDelta);
+
+	ELTimer_SetServerMSec(kPacketHandshake.dwTime+ kPacketHandshake.lDelta);
+
+	kPacketHandshake.dwTime = kPacketHandshake.dwTime + kPacketHandshake.lDelta + kPacketHandshake.lDelta;
+	kPacketHandshake.lDelta = 0;
+
+	Tracenf("HANDSHAKE SEND %u", kPacketHandshake.dwTime);
+
+	if (!Send(sizeof(kPacketHandshake), &kPacketHandshake))
 	{
-		Tracenf("HANDSHAKE RECV %u %d", kPacketHandshake.dwTime, kPacketHandshake.lDelta);
-
-		ELTimer_SetServerMSec(kPacketHandshake.dwTime+ kPacketHandshake.lDelta);
-
-		//DWORD dwBaseServerTime = kPacketHandshake.dwTime+ kPacketHandshake.lDelta;
-		//DWORD dwBaseClientTime = ELTimer_GetMSec();
-
-		kPacketHandshake.dwTime = kPacketHandshake.dwTime + kPacketHandshake.lDelta + kPacketHandshake.lDelta;
-		kPacketHandshake.lDelta = 0;
-
-		Tracenf("HANDSHAKE SEND %u", kPacketHandshake.dwTime);
-
-		if (!Send(sizeof(kPacketHandshake), &kPacketHandshake))
-		{
-			Tracen(" CAccountConnector::__AuthState_RecvHandshake - SendHandshake Error");
-			return false;
-		}
+		Tracen(" CAccountConnector::__AuthState_RecvHandshake - SendHandshake Error");
+		return false;
 	}
 
 	return true;
 }
 
-bool CAccountConnector::__AuthState_RecvPanamaPack()
+bool CAccountConnector::__AuthState_RecvKeyChallenge()
 {
-	TPacketGCPanamaPack kPacket;
-
-	if (!Recv(sizeof(TPacketGCPanamaPack), &kPacket))
+	TPacketGCKeyChallenge packet;
+	if (!Recv(sizeof(packet), &packet))
 		return false;
 
+	Tracen("KEY_CHALLENGE RECV - Starting secure key exchange");
+
+	SecureCipher& cipher = GetSecureCipher();
+	if (!cipher.Initialize())
+	{
+		Tracen("SecureCipher initialization failed");
+		Disconnect();
+		return false;
+	}
+
+	if (!cipher.ComputeClientKeys(packet.server_pk))
+	{
+		Tracen("Failed to compute client session keys");
+		Disconnect();
+		return false;
+	}
+
+	TPacketCGKeyResponse response;
+	response.bHeader = HEADER_CG_KEY_RESPONSE;
+	cipher.GetPublicKey(response.client_pk);
+	cipher.ComputeResponse(packet.challenge, response.challenge_response);
+
+	if (!Send(sizeof(response), &response))
+	{
+		Tracen("Failed to send key response");
+		return false;
+	}
+
+	Tracen("KEY_RESPONSE SEND - Awaiting key completion");
 	return true;
 }
 
-bool CAccountConnector::__AuthState_RecvHybridCryptKeys(int iTotalSize)
+bool CAccountConnector::__AuthState_RecvKeyComplete()
 {
-	int iFixedHeaderSize = TPacketGCHybridCryptKeys::GetFixedHeaderSize();
-	
-	TPacketGCHybridCryptKeys kPacket(iTotalSize-iFixedHeaderSize);
-
-	if (!Recv(iFixedHeaderSize, &kPacket))
+	TPacketGCKeyComplete packet;
+	if (!Recv(sizeof(packet), &packet))
 		return false;
 
-	if (!Recv(kPacket.iKeyStreamLen, kPacket.m_pStream))
-		return false;
+	Tracen("KEY_COMPLETE RECV - Decrypting session token");
 
+	SecureCipher& cipher = GetSecureCipher();
+
+	uint8_t session_token[SecureCipher::SESSION_TOKEN_SIZE];
+	if (crypto_aead_xchacha20poly1305_ietf_decrypt(
+			session_token, nullptr,
+			nullptr,
+			packet.encrypted_token, sizeof(packet.encrypted_token),
+			nullptr, 0,
+			packet.nonce,
+			cipher.GetRxKey()) != 0)
+	{
+		Tracen("Failed to decrypt session token - authentication failed");
+		Disconnect();
+		return false;
+	}
+
+	cipher.SetSessionToken(session_token);
+	cipher.SetActivated(true);
+
+	Tracen("Secure channel established - encryption activated");
 	return true;
 }
-
-bool CAccountConnector::__AuthState_RecvHybridCryptSDB(int iTotalSize)
-{
-	int iFixedHeaderSize = TPacketGCHybridSDB::GetFixedHeaderSize();
-
-	TPacketGCHybridSDB kPacket(iTotalSize-iFixedHeaderSize);
-
-	if (!Recv(iFixedHeaderSize, &kPacket))
-		return false;
-
-	if (!Recv(kPacket.iSDBStreamLen, kPacket.m_pStream))
-		return false;
-
-	return true;
-}
-
 
 bool CAccountConnector::__AuthState_RecvPing()
 {
@@ -309,8 +289,6 @@ bool CAccountConnector::__AuthState_RecvAuthSuccess()
 	}
 	else
 	{
-		DWORD dwPanamaKey = kAuthSuccessPacket.dwLoginKey ^ g_adwEncryptKey[0] ^ g_adwEncryptKey[1] ^ g_adwEncryptKey[2] ^ g_adwEncryptKey[3];
-
 		CPythonNetworkStream & rkNet = CPythonNetworkStream::Instance();
 		rkNet.SetLoginKey(kAuthSuccessPacket.dwLoginKey);
 		rkNet.Connect(m_strAddr.c_str(), m_iPort);
@@ -331,71 +309,8 @@ bool CAccountConnector::__AuthState_RecvAuthFailure()
 	if (m_poHandler)
 		PyCallClassMemberFunc(m_poHandler, "OnLoginFailure", Py_BuildValue("(s)", packet_failure.szStatus));
 
-//	__OfflineState_Set();
-
 	return true;
 }
-
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-bool CAccountConnector::__AuthState_RecvKeyAgreement()
-{
-	TPacketKeyAgreement packet;
-	if (!Recv(sizeof(packet), &packet))
-	{
-		return false;
-	}
-
-	Tracenf("KEY_AGREEMENT RECV %u", packet.wDataLength);
-
-	TPacketKeyAgreement packetToSend;
-	size_t dataLength = TPacketKeyAgreement::MAX_DATA_LEN;
-	size_t agreedLength = Prepare(packetToSend.data, &dataLength);
-	if (agreedLength == 0)
-	{
-		// 초기화 실패
-		Disconnect();
-		return false;
-	}
-	assert(dataLength <= TPacketKeyAgreement::MAX_DATA_LEN);
-
-	if (Activate(packet.wAgreedLength, packet.data, packet.wDataLength))
-	{
-		// Key agreement 성공, 응답 전송
-		packetToSend.bHeader = HEADER_CG_KEY_AGREEMENT;
-		packetToSend.wAgreedLength = (WORD)agreedLength;
-		packetToSend.wDataLength = (WORD)dataLength;
-
-		if (!Send(sizeof(packetToSend), &packetToSend))
-		{
-			Tracen(" CAccountConnector::__AuthState_RecvKeyAgreement - SendKeyAgreement Error");
-			return false;
-		}
-		Tracenf("KEY_AGREEMENT SEND %u", packetToSend.wDataLength);
-	}
-	else
-	{
-		// 키 협상 실패
-		Disconnect();
-		return false;
-	}
-	return true;
-}
-
-bool CAccountConnector::__AuthState_RecvKeyAgreementCompleted()
-{
-	TPacketKeyAgreementCompleted packet;
-	if (!Recv(sizeof(packet), &packet))
-	{
-		return false;
-	}
-
-	Tracenf("KEY_AGREEMENT_COMPLETED RECV");
-
-	ActivateCipher();
-
-	return true;
-}
-#endif // _IMPROVED_PACKET_ENCRYPTION_
 
 bool CAccountConnector::__AnalyzePacket(UINT uHeader, UINT uPacketSize, bool (CAccountConnector::*pfnDispatchPacket)())
 {
@@ -411,27 +326,6 @@ bool CAccountConnector::__AnalyzePacket(UINT uHeader, UINT uPacketSize, bool (CA
 
 	return (this->*pfnDispatchPacket)();
 }
-
-bool CAccountConnector::__AnalyzeVarSizePacket(UINT uHeader, bool (CAccountConnector::*pfnDispatchPacket)(int))
-{
-	BYTE bHeader;
-	if (!Peek(sizeof(bHeader), &bHeader))
-		return true;
-
-	if (bHeader!=uHeader)
-		return true;
-
-	TDynamicSizePacketHeader dynamicHeader;
-
-	if (!Peek(sizeof(dynamicHeader), &dynamicHeader))
-		return true;
-
-	if (!Peek(dynamicHeader.size))
-		return true;
-
-	return (this->*pfnDispatchPacket)(dynamicHeader.size);
-}
-
 
 void CAccountConnector::__OfflineState_Set()
 {
@@ -463,7 +357,6 @@ void CAccountConnector::OnConnectSuccess()
 
 void CAccountConnector::OnRemoteDisconnect()
 {
-	// Matrix Card Number 를 보내 놓았는데 close 되면 프로그램을 종료 한다.
 	if (m_isWaitKey)
 	{
 		if (m_poHandler)
@@ -480,17 +373,6 @@ void CAccountConnector::OnDisconnect()
 {
 	__OfflineState_Set();
 }
-
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-void CAccountConnector::__BuildClientKey()
-{
-	for (DWORD i = 0; i < 4; ++i)
-		g_adwEncryptKey[i] = random();
-
-	const BYTE * c_pszKey = (const BYTE *) "JyTxtHljHJlVJHorRM301vf@4fvj10-v";
-	tea_encrypt((DWORD *) g_adwDecryptKey, (const DWORD *) g_adwEncryptKey, (const DWORD *) c_pszKey, 16);
-}
-#endif
 
 void CAccountConnector::__Inialize()
 {

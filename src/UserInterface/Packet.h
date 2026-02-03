@@ -11,7 +11,6 @@ enum
 	/////////////////////////////////////////////////
 	// To Server
 	// HEADER_BLANK is the not use(for future use)
-	HEADER_CG_LOGIN								= 1,
 	HEADER_CG_ATTACK							= 2,
 	HEADER_CG_CHAT								= 3,
 	HEADER_CG_PLAYER_CREATE						= 4,		// 새로운 플래이어를 생성
@@ -131,7 +130,8 @@ enum
 	HEADER_CG_DRAGON_SOUL_REFINE			= 205,
 	HEADER_CG_STATE_CHECKER					= 206,
 
-	HEADER_CG_KEY_AGREEMENT						= 0xfb, // _IMPROVED_PACKET_ENCRYPTION_
+	HEADER_CG_KEY_RESPONSE						= 0xf9, // Secure key exchange response
+	HEADER_CG_LOGIN_SECURE						= 0xf6, // Secure login packet
 	HEADER_CG_TIME_SYNC							= 0xfc,
 	HEADER_CG_CLIENT_VERSION					= 0xfd,
 	HEADER_CG_CLIENT_VERSION2					= 0xf1,
@@ -288,21 +288,15 @@ enum
 	// END_OF_SUPPORT_BGM
 
     HEADER_GC_AUTH_SUCCESS                      = 150,
-    HEADER_GC_PANAMA_PACK						= 151,
-
-	//HYBRID CRYPT
-	HEADER_GC_HYBRIDCRYPT_KEYS					= 152,
-	HEADER_GC_HYBRIDCRYPT_SDB					= 153, // SDB means Supplmentary Data Blocks
-	//HYBRID CRYPT
 
 	HEADER_GC_SPECIFIC_EFFECT					= 208,
-	HEADER_GC_DRAGON_SOUL_REFINE						= 209,
+	HEADER_GC_DRAGON_SOUL_REFINE				= 209,
 	HEADER_GC_RESPOND_CHANNELSTATUS				= 210,
 
 	HEADER_GC_ITEM_GET							= 211,
 
-	HEADER_GC_KEY_AGREEMENT_COMPLETED			= 0xfa, // _IMPROVED_PACKET_ENCRYPTION_
-	HEADER_GC_KEY_AGREEMENT						= 0xfb, // _IMPROVED_PACKET_ENCRYPTION_
+	HEADER_GC_KEY_CHALLENGE						= 0xf8, // Secure key exchange challenge
+	HEADER_GC_KEY_COMPLETE						= 0xf7, // Secure key exchange complete
 	HEADER_GC_HANDSHAKE_OK						= 0xfc, // 252
 	HEADER_GC_PHASE								= 0xfd,	// 253
     HEADER_GC_BINDUDP                           = 0xfe, // 254
@@ -479,20 +473,12 @@ typedef struct command_checkin
 	char pwd[PASS_MAX_NUM+1];
 } TPacketCGCheckin;
 
-typedef struct command_login
-{
-    uint8_t header;
-    char name[ID_MAX_NUM + 1];
-    char pwd[PASS_MAX_NUM + 1];
-} TPacketCGLogin;
-
 // start - 권한 서버 접속을 위한 패킷들
 typedef struct command_login2
 {
 	uint8_t	header;
 	char	name[ID_MAX_NUM + 1];
 	uint32_t	login_key;
-    uint32_t	adwClientKey[4];
 } TPacketCGLogin2;
 
 typedef struct command_login3
@@ -500,7 +486,6 @@ typedef struct command_login3
     uint8_t	header;
     char	name[ID_MAX_NUM + 1];
     char	pwd[PASS_MAX_NUM + 1];
-    uint32_t	adwClientKey[4];
 } TPacketCGLogin3;
 
 typedef struct command_direct_enter
@@ -2468,70 +2453,6 @@ typedef struct SPacketGCResetOnTime
     uint8_t header;
 } TPacketGCResetOnTime;
 
-typedef struct SPacketGCPanamaPack
-{
-    uint8_t    bHeader;
-    char    szPackName[256];
-    uint8_t    abIV[32];
-} TPacketGCPanamaPack;
-
-typedef struct SPacketGCHybridCryptKeys
-{
-private:
-	SPacketGCHybridCryptKeys() : m_pStream(NULL) {}
-
-public:
-	SPacketGCHybridCryptKeys(int32_t iStreamSize) : iKeyStreamLen(iStreamSize)
-	{
-		m_pStream = new uint8_t[iStreamSize];
-	}
-	~SPacketGCHybridCryptKeys()
-	{
-		if( m_pStream )
-		{
-			delete[] m_pStream;
-			m_pStream = NULL;
-		}
-	}
-	static int32_t GetFixedHeaderSize() 
-	{
-		return sizeof(uint8_t)+sizeof(uint16_t)+sizeof(int32_t);
-	}
-
-	uint8_t	bHeader;
-	uint16_t    wDynamicPacketSize;
-	int32_t		iKeyStreamLen;
-	uint8_t*	m_pStream;
-
-} TPacketGCHybridCryptKeys;
-
-
-typedef struct SPacketGCHybridSDB
-{
-private:
-	SPacketGCHybridSDB() : m_pStream(NULL) {}
-
-public:
-	SPacketGCHybridSDB(int32_t iStreamSize) : iSDBStreamLen(iStreamSize)
-	{
-		m_pStream = new uint8_t[iStreamSize];
-	}
-	~SPacketGCHybridSDB()
-	{
-		delete[] m_pStream;
-		m_pStream = NULL;
-	}
-	static int32_t GetFixedHeaderSize()
-	{
-		return sizeof(uint8_t)+sizeof(uint16_t)+sizeof(int32_t);
-	}
-
-	uint8_t	bHeader;
-	uint16_t    wDynamicPacketSize;
-	int32_t		iSDBStreamLen;
-	uint8_t*	m_pStream;
-
-} TPacketGCHybridSDB;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Client To Client
 
@@ -2556,22 +2477,43 @@ typedef struct packet_autoban_quiz
 } TPacketGCAutoBanQuiz;
 // END_OF_AUTOBAN
 
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-struct TPacketKeyAgreement
+// Secure authentication packets (libsodium/XChaCha20-Poly1305)
+#pragma pack(push, 1)
+
+// Server -> Client: Key exchange challenge
+struct TPacketGCKeyChallenge
 {
-	static const int32_t MAX_DATA_LEN = 256;
-	uint8_t bHeader;
-	uint16_t wAgreedLength;
-	uint16_t wDataLength;
-	uint8_t data[MAX_DATA_LEN];
+	uint8_t bHeader;           // HEADER_GC_KEY_CHALLENGE (0xf8)
+	uint8_t server_pk[32];     // Server's X25519 public key
+	uint8_t challenge[32];     // Random challenge bytes
 };
 
-struct TPacketKeyAgreementCompleted
+// Client -> Server: Key exchange response
+struct TPacketCGKeyResponse
 {
-	uint8_t bHeader;
-	uint8_t data[3]; // dummy (not used)
+	uint8_t bHeader;           // HEADER_CG_KEY_RESPONSE (0xf9)
+	uint8_t client_pk[32];     // Client's X25519 public key
+	uint8_t challenge_response[32]; // HMAC(challenge, rx_key)
 };
-#endif // _IMPROVED_PACKET_ENCRYPTION_
+
+// Server -> Client: Key exchange complete
+struct TPacketGCKeyComplete
+{
+	uint8_t bHeader;           // HEADER_GC_KEY_COMPLETE (0xf7)
+	uint8_t encrypted_token[32 + 16]; // Session token + Poly1305 tag
+	uint8_t nonce[24];         // XChaCha20 nonce
+};
+
+// Client -> Server: Secure login
+struct TPacketCGLoginSecure
+{
+	uint8_t bHeader;           // HEADER_CG_LOGIN_SECURE (0xf6)
+	char name[ID_MAX_NUM + 1];
+	char pwd[PASS_MAX_NUM + 1];
+	uint8_t session_token[32]; // Session token from KeyComplete
+};
+
+#pragma pack(pop)
 
 typedef struct SPacketGCSpecificEffect
 {

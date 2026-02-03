@@ -2,8 +2,7 @@
 
 add_library(PRTerrainLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(PRTerrainLib 
-	cryptopp-static
+target_link_libraries(PRTerrainLib
 	mio
 )
 

@@ -2,8 +2,7 @@
 
 add_library(EterImageLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(EterImageLib 
-	cryptopp-static
+target_link_libraries(EterImageLib
 	mio
 )
 

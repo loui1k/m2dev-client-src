@@ -10,6 +10,7 @@
 #include <cstring>
 #include <io.h>
 #include <direct.h>
+#include <sodium.h>
 
 #include "lzo.h"
 
@@ -1152,7 +1153,13 @@ int main(int argc, char ** argv)
 
 	printf("=== MAIN START ===\n");
 	fflush(stdout);
-	
+
+	if (sodium_init() < 0)
+	{
+		fprintf(stderr, "sodium_init() failed\n");
+		return 1;
+	}
+
 	if (BuildMobTable())
 	{
 		printf("=== BuildMobTable returned TRUE ===\n");

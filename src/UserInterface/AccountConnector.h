@@ -1,4 +1,4 @@
-#pragma 
+#pragma once
 
 #include "EterLib/NetStream.h"
 #include "EterLib/FuncObject.h"
@@ -49,22 +49,10 @@ class CAccountConnector : public CNetworkStream, public CSingleton<CAccountConne
 		bool __AuthState_SendPong();
 		bool __AuthState_RecvAuthSuccess();
 		bool __AuthState_RecvAuthFailure();
-		bool __AuthState_RecvPanamaPack();
-#ifdef _IMPROVED_PACKET_ENCRYPTION_
-		bool __AuthState_RecvKeyAgreement();
-		bool __AuthState_RecvKeyAgreementCompleted();
-#endif
-		bool __AuthState_RecvHybridCryptKeys(int VarSize);
-		bool __AuthState_RecvHybridCryptSDB(int VarSize);
+		bool __AuthState_RecvKeyChallenge();
+		bool __AuthState_RecvKeyComplete();
 
 		bool __AnalyzePacket(UINT uHeader, UINT uPacketSize, bool (CAccountConnector::*pfnDispatchPacket)());
-		// TODO:  지금 현재는 임시다.  header뒤에 size 4byte가 무조건 온다는 가정임.
-		// 제대로 하려면  Packet System Refactoring해야 한다. 
-		bool __AnalyzeVarSizePacket(UINT uHeader, bool (CAccountConnector::*pfnDispatchPacket)(int));
-
-#ifndef _IMPROVED_PACKET_ENCRYPTION_
-		void __BuildClientKey();
-#endif
 
 	protected:
 		UINT m_eState;
@@ -77,7 +65,4 @@ class CAccountConnector : public CNetworkStream, public CSingleton<CAccountConne
 
 		PyObject * m_poHandler;
 
-		// CHINA_CRYPT_KEY
-		void __BuildClientKey_20050304Myevan();
-		// END_OF_CHINA_CRYPT_KEY
 };

@@ -2,8 +2,7 @@
 
 add_library(SpeedTreeLib STATIC ${FILE_SOURCES})
 
-target_link_libraries(SpeedTreeLib 
-	cryptopp-static
+target_link_libraries(SpeedTreeLib
 	mio
 )
 

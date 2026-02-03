@@ -5,7 +5,7 @@ set_target_properties(PackMaker PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-target_link_libraries(PackMaker 
+target_link_libraries(PackMaker
 	libzstd_static
-	cryptopp-static
+	sodium
 )
