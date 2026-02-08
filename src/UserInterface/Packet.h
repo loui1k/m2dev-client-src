@@ -2239,7 +2239,7 @@ typedef struct SPacketGCChangeSkillGroup
 struct TMaterial
 {
     uint32_t vnum;
-    uint32_t count;
+    int32_t  count;
 };
 
 typedef struct SRefineTable
@@ -2254,10 +2254,11 @@ typedef struct SRefineTable
 
 typedef struct SPacketGCRefineInformation
 {
-	uint16_t	header;
-	uint16_t	length;
-	uint8_t			pos;
-	TRefineTable	refine_table;
+    uint16_t header;
+    uint16_t length;
+    uint8_t  type;
+    uint8_t  pos;
+    TRefineTable refine_table;
 } TPacketGCRefineInformation;
 
 typedef struct SPacketGCRefineInformationNew
