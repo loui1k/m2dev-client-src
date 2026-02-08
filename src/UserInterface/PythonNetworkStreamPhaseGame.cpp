@@ -3010,7 +3010,7 @@ bool CPythonNetworkStream::SendGuildChangeMemberGeneralPacket(DWORD dwPID, BYTE 
 {
 	TPacketCGGuild GuildPacket;
 	GuildPacket.header = CG::GUILD;
-	GuildPacket.length = sizeof(GuildPacket);
+	GuildPacket.length = sizeof(GuildPacket) + sizeof(dwPID) + sizeof(byFlag);
 	GuildPacket.bySubHeader = GuildSub::CG::CHANGE_MEMBER_GENERAL;
 	if (!Send(sizeof(GuildPacket), &GuildPacket))
 		return false;
@@ -3028,7 +3028,7 @@ bool CPythonNetworkStream::SendGuildInviteAnswerPacket(DWORD dwGuildID, BYTE byA
 {
 	TPacketCGGuild GuildPacket;
 	GuildPacket.header = CG::GUILD;
-	GuildPacket.length = sizeof(GuildPacket);
+	GuildPacket.length = sizeof(GuildPacket) + sizeof(dwGuildID) + sizeof(byAnswer);
 	GuildPacket.bySubHeader = GuildSub::CG::GUILD_INVITE_ANSWER;
 	if (!Send(sizeof(GuildPacket), &GuildPacket))
 		return false;
