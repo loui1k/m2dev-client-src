@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_set>
 
 namespace UI 
 {
@@ -144,44 +145,44 @@ namespace UI
 			void		__ClearReserveDeleteWindowList();
 
 		private:
-			long					m_lWidth;
-			long					m_lHeight;
+			long								m_lWidth;
+			long								m_lHeight;
 
-			int						m_iVres;
-			int						m_iHres;
+			int									m_iVres;
+			int									m_iHres;
 
-			long					m_lMouseX, m_lMouseY;
-			long					m_lDragX, m_lDragY;
-			long					m_lPickedX, m_lPickedY;
+			long								m_lMouseX, m_lMouseY;
+			long								m_lDragX, m_lDragY;
+			long								m_lPickedX, m_lPickedY;
 
-			BOOL					m_bOnceIgnoreMouseLeftButtonUpEventFlag;
-			int						m_iIgnoreEndTime;
+			BOOL								m_bOnceIgnoreMouseLeftButtonUpEventFlag;
+			int									m_iIgnoreEndTime;
 
 			// Attaching Icon
-			PyObject *				m_poMouseHandler;
-			BOOL					m_bAttachingFlag;
-			DWORD					m_dwAttachingType;
-			DWORD					m_dwAttachingIndex;
-			DWORD					m_dwAttachingSlotNumber;
-			BYTE					m_byAttachingIconWidth;
-			BYTE					m_byAttachingIconHeight;
+			PyObject *							m_poMouseHandler;
+			BOOL								m_bAttachingFlag;
+			DWORD								m_dwAttachingType;
+			DWORD								m_dwAttachingIndex;
+			DWORD								m_dwAttachingSlotNumber;
+			BYTE								m_byAttachingIconWidth;
+			BYTE								m_byAttachingIconHeight;
 			// Attaching Icon
 
-			CWindow	*				m_pActiveWindow;
-			TWindowContainer		m_ActiveWindowList;
-			CWindow *				m_pLockWindow;
-			TWindowContainer		m_LockWindowList;
-			CWindow	*				m_pPointWindow;
-			CWindow	*				m_pLeftCaptureWindow;
-			CWindow	*				m_pRightCaptureWindow;
-			CWindow *				m_pMiddleCaptureWindow;
-			TKeyCaptureWindowMap	m_KeyCaptureWindowMap;
-			TWindowContainer		m_ReserveDeleteWindowList;
-			TWindowContainer		m_PickAlwaysWindowList;
+			CWindow	*							m_pActiveWindow;
+			TWindowContainer					m_ActiveWindowList;
+			CWindow *							m_pLockWindow;
+			TWindowContainer					m_LockWindowList;
+			CWindow	*							m_pPointWindow;
+			CWindow	*							m_pLeftCaptureWindow;
+			CWindow	*							m_pRightCaptureWindow;
+			CWindow *							m_pMiddleCaptureWindow;
+			TKeyCaptureWindowMap				m_KeyCaptureWindowMap;
+			std::unordered_set<CWindow*>		m_ReserveDeleteWindowList;
+			TWindowContainer					m_PickAlwaysWindowList;
 
-			CWindow *				m_pRootWindow;
-			TWindowContainer		m_LayerWindowList;
-			TLayerContainer			m_LayerWindowMap;
+			CWindow *							m_pRootWindow;
+			TWindowContainer					m_LayerWindowList;
+			TLayerContainer						m_LayerWindowMap;
 	};
 
 	PyObject * BuildEmptyTuple();
