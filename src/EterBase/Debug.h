@@ -3,6 +3,10 @@
 
 #include <windows.h>
 
+#if defined(_DEBUG) && !defined(_PACKETDUMP)
+#define _PACKETDUMP
+#endif
+
 extern void SetLogLevel(UINT uLevel);
 extern void Log(UINT uLevel, const char* c_szMsg);
 extern void Logn(UINT uLevel, const char* c_szMsg);
@@ -15,6 +19,15 @@ extern void Tracenf(const char* c_szFormat, ...);
 extern void Tracef(const char* c_szFormat, ...);
 extern void TraceError(const char* c_szFormat, ...);
 extern void TraceErrorWithoutEnter(const char* c_szFormat, ...);
+// MR-11: Separate packet dump log from the main log file
+extern void TempTrace(const char* c_szMsg, bool errType = false);
+extern void TempTracef(const char* c_szFormat, bool errType = false, ...);
+extern void TempTracen(const char* c_szMsg, bool errType = false);
+extern void TempTracenf(const char* c_szFormat, bool errType = false, ...);
+
+extern void PacketDump(const char* c_szMsg);
+extern void PacketDumpf(const char* c_szFormat, ...);
+// MR-11: -- END OF -- Separate packet dump log from the main log file
 
 extern void LogBox(const char* c_szMsg, const char * c_szCaption = NULL, HWND hWnd = NULL);
 extern void LogBoxf(const char* c_szMsg, ...);

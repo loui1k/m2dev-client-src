@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <sstream>
 
-#ifdef _DEBUG
+#if defined(_DEBUG) && !defined(_PACKETDUMP)
 #define _PACKETDUMP
 #endif
 
@@ -513,11 +513,13 @@ bool CNetworkStream::Recv(int size, char * pDestBuf)
 #ifdef _PACKETDUMP
 	if (size >= 2)
 	{
+		// MR-11: Separate packet dump log from the main log file
 		const uint16_t kHeader = *reinterpret_cast<const uint16_t*>(pDestBuf);
-		TraceError("RECV< %s 0x%04X (%d bytes)", GetHeaderName(kHeader), kHeader, size);
+		PacketDumpf("RECV< %s 0x%04X (%d bytes)", GetHeaderName(kHeader), kHeader, size);
 
 		const auto contents = dump_hex(reinterpret_cast<const uint8_t*>(pDestBuf), size);
-		TraceError("%s", contents.c_str());
+		PacketDumpf("%s", contents.c_str());
+		// MR-11: -- END OF -- Separate packet dump log from the main log file
 	}
 #endif
 
@@ -564,11 +566,13 @@ bool CNetworkStream::Send(int size, const char * pSrcBuf)
 #ifdef _PACKETDUMP
 	if (size >= 2)
 	{
+		// MR-11: Separate packet dump log from the main log file
 		const uint16_t kHeader = *reinterpret_cast<const uint16_t*>(pSrcBuf);
-		TraceError("SEND> %s 0x%04X (%d bytes)", GetHeaderName(kHeader), kHeader, size);
+		PacketDumpf("SEND> %s 0x%04X (%d bytes)", GetHeaderName(kHeader), kHeader, size);
 
 		const auto contents = dump_hex(reinterpret_cast<const uint8_t*>(pSrcBuf), size);
-		TraceError("%s", contents.c_str());
+		PacketDumpf("%s", contents.c_str());
+		 // MR-11: -- END OF -- Separate packet dump log from the main log file
 	}
 #endif
 

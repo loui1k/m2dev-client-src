@@ -73,9 +73,11 @@ namespace UI
 				CImageBox * pSignImage;
 				CAniImageBox * pFinishCoolTimeEffect;
 			} TSlot;
+
 			typedef std::list<TSlot> TSlotList;
 			typedef TSlotList::iterator TSlotListIterator;
-			typedef struct SStoreCoolDown { float fCoolTime; float fElapsedTime; bool bActive; };
+
+			struct SStoreCoolDown { float fCoolTime; float fElapsedTime; bool bActive; };
 
 
 		public:
@@ -121,13 +123,13 @@ namespace UI
 
 			void LockSlot(DWORD dwIndex);
 			void UnlockSlot(DWORD dwIndex);
-			BOOL IsLockSlot(DWORD dwIndex);
+			// BOOL IsLockSlot(DWORD dwIndex);
 			void SetCantUseSlot(DWORD dwIndex);
 			void SetUseSlot(DWORD dwIndex);
-			BOOL IsCantUseSlot(DWORD dwIndex);
+			// BOOL IsCantUseSlot(DWORD dwIndex);
 			void EnableSlot(DWORD dwIndex);
 			void DisableSlot(DWORD dwIndex);
-			BOOL IsEnableSlot(DWORD dwIndex);
+			// BOOL IsEnableSlot(DWORD dwIndex);
 
 			// Select
 			void ClearSelected();
