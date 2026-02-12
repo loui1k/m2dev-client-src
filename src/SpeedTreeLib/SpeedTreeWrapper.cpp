@@ -403,7 +403,7 @@ bool CSpeedTreeWrapper::LoadTree(const char * pszSptFile, const BYTE * c_pbBlock
 		m_pSpeedTree->SetTreeSize(fSize, fSizeVariance);
 	
 	// generate tree geometry
-	if (m_pSpeedTree->Compute(NULL, nSeed))
+	if (m_pSpeedTree->Compute(NULL, nSeed, false))
 	{
 		// get the dimensions
 		m_pSpeedTree->GetBoundingBox(m_afBoundingBox);
