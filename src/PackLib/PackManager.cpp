@@ -2,6 +2,7 @@
 #include "EterLib/BufferPool.h"
 #include <fstream>
 #include <filesystem>
+#include "EterBase/Debug.h"
 
 CPackManager::CPackManager()
 	: m_load_from_pack(true)
@@ -92,7 +93,15 @@ bool CPackManager::IsExist(std::string_view path) const
 	}
 
 	// Fallback to disk (for files not in packs, like bgm folder)
-	return std::filesystem::exists(buf);
+	std::error_code ec; // To avoid exceptions from std::filesystem
+	const auto result = std::filesystem::exists(buf, ec);
+	if (ec)
+	{
+		TraceError("std::filesystem::exists failed for path '%s' with error: %s", buf.c_str(), ec.message().c_str());
+		return false;
+	}
+
+	return result;
 }
 
 void CPackManager::NormalizePath(std::string_view in, std::string& out) const
