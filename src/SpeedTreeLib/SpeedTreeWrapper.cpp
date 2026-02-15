@@ -91,6 +91,9 @@ void CSpeedTreeWrapper::SetVertexShaders(LPDIRECT3DVERTEXDECLARATION9 pBranchVer
 
 void CSpeedTreeWrapper::OnRenderPCBlocker()
 {
+	if (!ms_dwBranchVertexShader || !ms_pLeafVertexShaderDecl || !ms_pLeafVertexShader)
+		CSpeedTreeForestDirectX8::Instance().EnsureVertexShaders();
+
 	if (ms_dwBranchVertexShader == 0)
 	{
 		ms_dwBranchVertexShader = LoadBranchShader(ms_lpd3dDevice);
@@ -200,22 +203,25 @@ void CSpeedTreeWrapper::OnRenderPCBlocker()
 	}
 	RenderFronds();
 	
-	STATEMANAGER.SetVertexDeclaration(ms_pLeafVertexShaderDecl);
-	STATEMANAGER.SaveVertexShader(ms_pLeafVertexShader);
-	
-// 	SetupLeafForTreeType();
+	if (ms_pLeafVertexShaderDecl && ms_pLeafVertexShader)
 	{
-		// pass leaf tables to shader
-#ifdef WRAPPER_USE_GPU_LEAF_PLACEMENT
-		UploadLeafTables(c_nVertexShader_LeafTables);
-#endif
+		STATEMANAGER.SetVertexDeclaration(ms_pLeafVertexShaderDecl);
+		STATEMANAGER.SaveVertexShader(ms_pLeafVertexShader);
 		
-		if (!m_CompositeImageInstance.IsEmpty())
-			STATEMANAGER.SetTexture(0, m_CompositeImageInstance.GetTextureReference().GetD3DTexture());
+// 	SetupLeafForTreeType();
+		{
+			// pass leaf tables to shader
+#ifdef WRAPPER_USE_GPU_LEAF_PLACEMENT
+			UploadLeafTables(c_nVertexShader_LeafTables);
+#endif
+			
+			if (!m_CompositeImageInstance.IsEmpty())
+				STATEMANAGER.SetTexture(0, m_CompositeImageInstance.GetTextureReference().GetD3DTexture());
+		}
+		RenderLeaves();
+		STATEMANAGER.RestoreVertexShader();
 	}
-	RenderLeaves();
 	EndLeafForTreeType();
-	STATEMANAGER.RestoreVertexShader();
 	
 	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, FALSE);
 	STATEMANAGER.SetRenderState(D3DRS_COLORVERTEX, FALSE);
@@ -234,6 +240,9 @@ void CSpeedTreeWrapper::OnRenderPCBlocker()
 
 void CSpeedTreeWrapper::OnRender()
 {
+	if (!ms_dwBranchVertexShader || !ms_pLeafVertexShaderDecl || !ms_pLeafVertexShader)
+		CSpeedTreeForestDirectX8::Instance().EnsureVertexShaders();
+
 	if (ms_dwBranchVertexShader == 0)
 	{
 		ms_dwBranchVertexShader = LoadBranchShader(ms_lpd3dDevice);
@@ -280,13 +289,16 @@ void CSpeedTreeWrapper::OnRender()
 	SetupFrondForTreeType();
 	RenderFronds();
 	
-	STATEMANAGER.SetVertexDeclaration(ms_pLeafVertexShaderDecl);
-	STATEMANAGER.SaveVertexShader(ms_pLeafVertexShader);
-	
-	SetupLeafForTreeType();
-	RenderLeaves();
+	if (ms_pLeafVertexShaderDecl && ms_pLeafVertexShader)
+	{
+		STATEMANAGER.SetVertexDeclaration(ms_pLeafVertexShaderDecl);
+		STATEMANAGER.SaveVertexShader(ms_pLeafVertexShader);
+		
+		SetupLeafForTreeType();
+		RenderLeaves();
+		STATEMANAGER.RestoreVertexShader();
+	}
 	EndLeafForTreeType();
-	STATEMANAGER.RestoreVertexShader();
 	
 	STATEMANAGER.SetRenderState(D3DRS_LIGHTING, FALSE);
 	STATEMANAGER.SetRenderState(D3DRS_COLORVERTEX, FALSE);
@@ -1114,6 +1126,11 @@ void CSpeedTreeWrapper::RenderLeaves(void) const
 {
 	// update leaf geometry
 	m_pSpeedTree->GetGeometry(*m_pGeometryCache, SpeedTree_LeafGeometry);
+
+	if (!m_pLeafVertexBuffer || m_usNumLeafLods == 0)
+		return;
+
+	const int maxLeafLod = static_cast<int>(m_usNumLeafLods);
 	
 	// update the LOD level vertex arrays we need
 #if defined(WRAPPER_USE_GPU_LEAF_PLACEMENT) && defined(WRAPPER_USE_GPU_WIND)
@@ -1126,9 +1143,18 @@ void CSpeedTreeWrapper::RenderLeaves(void) const
 		// reference to leaf structure
 		const CSpeedTreeRT::SGeometry::SLeaf* pLeaf = (i == 0) ? &m_pGeometryCache->m_sLeaves0 : &m_pGeometryCache->m_sLeaves1;
 		int unLod = pLeaf->m_nDiscreteLodLevel;
+
+		if (!pLeaf->m_bIsActive || pLeaf->m_usLeafCount == 0)
+			continue;
+
+		if (unLod < 0 || unLod >= maxLeafLod)
+			continue;
+
+		if (!m_pLeafVertexBuffer[unLod])
+			continue;
 		
 #if defined WRAPPER_USE_GPU_LEAF_PLACEMENT
-		if (pLeaf->m_bIsActive && !m_pLeavesUpdatedByCpu[unLod])
+		if (m_pLeavesUpdatedByCpu && !m_pLeavesUpdatedByCpu[unLod])
 		{
 			// update the centers
 			SFVFLeafVertex* pVertex = NULL;
@@ -1147,7 +1173,6 @@ void CSpeedTreeWrapper::RenderLeaves(void) const
 			m_pLeavesUpdatedByCpu[unLod] = true;
 		}
 #else
-		if (pLeaf->m_bIsActive && m_pLeafVertexBuffer[unLod])
 		{ 
 			// update the vertex positions
 			SFVFLeafVertex * pVertex = NULL;
@@ -1205,14 +1230,17 @@ void CSpeedTreeWrapper::RenderLeaves(void) const
 		
 		int unLod = pLeaf->m_nDiscreteLodLevel;
 		
-		if (unLod > -1 && pLeaf->m_bIsActive && pLeaf->m_usLeafCount > 0)
-		{
-			STATEMANAGER.SetStreamSource(0, m_pLeafVertexBuffer[unLod], sizeof(SFVFLeafVertex));
-			STATEMANAGER.SetRenderState(D3DRS_ALPHAREF, DWORD(pLeaf->m_fAlphaTestValue));
-			
-			ms_faceCount += pLeaf->m_usLeafCount * 2;
-			STATEMANAGER.DrawPrimitive(D3DPT_TRIANGLELIST, 0, pLeaf->m_usLeafCount * 2);
-		}
+		if (unLod < 0 || unLod >= maxLeafLod || !pLeaf->m_bIsActive || pLeaf->m_usLeafCount == 0)
+			continue;
+
+		if (!m_pLeafVertexBuffer[unLod])
+			continue;
+
+		STATEMANAGER.SetStreamSource(0, m_pLeafVertexBuffer[unLod], sizeof(SFVFLeafVertex));
+		STATEMANAGER.SetRenderState(D3DRS_ALPHAREF, DWORD(pLeaf->m_fAlphaTestValue));
+		
+		ms_faceCount += pLeaf->m_usLeafCount * 2;
+		STATEMANAGER.DrawPrimitive(D3DPT_TRIANGLELIST, 0, pLeaf->m_usLeafCount * 2);
 	}
 }
 
@@ -1222,6 +1250,9 @@ void CSpeedTreeWrapper::RenderLeaves(void) const
 
 void CSpeedTreeWrapper::EndLeafForTreeType(void)
 {
+	if (!m_pLeavesUpdatedByCpu)
+		return;
+
 	// reset copy flags for CPU wind
 	for (UINT i = 0; i < m_usNumLeafLods; ++i)
 		m_pLeavesUpdatedByCpu[i] = false;

@@ -52,6 +52,7 @@ class CSpeedTreeForestDirectX8 : public CSpeedTreeForest, public CGraphicBase, p
 
 		void			Render(unsigned long ulRenderBitVector = Forest_RenderAll);
 		bool			SetRenderingDevice(LPDIRECT3DDEVICE9 pDevice);
+		bool			EnsureVertexShaders() { return m_pDx ? InitVertexShaders() : false; }
 		
 	private:
 		bool			InitVertexShaders();

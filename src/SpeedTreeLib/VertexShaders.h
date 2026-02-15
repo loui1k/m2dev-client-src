@@ -204,7 +204,7 @@ static const char g_achLeafVertexProgram[] =
 		"dcl_normal v3\n"
 #endif
 		"dcl_texcoord0 v7\n"
-#ifdef WRAPPER_USE_GPU_LEAF_PLACEMENT
+#if defined WRAPPER_USE_GPU_WIND || defined WRAPPER_USE_GPU_LEAF_PLACEMENT
 		"dcl_texcoord2 v9\n"
 #endif
 
@@ -259,9 +259,6 @@ static const char g_achLeafVertexProgram[] =
 
 static void LoadLeafShader(LPDIRECT3DDEVICE9 pDx, LPDIRECT3DVERTEXDECLARATION9& pVertexDecl, LPDIRECT3DVERTEXSHADER9& pVertexShader)
 {
-	SAFE_RELEASE(pVertexDecl);
-	SAFE_RELEASE(pVertexShader);
-
 	const D3DVERTEXELEMENT9 leafVertexDecl[] = {
 			{ 0,  0, D3DDECLTYPE_FLOAT3,  D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION,     0 },
 #ifdef WRAPPER_USE_DYNAMIC_LIGHTING
@@ -280,18 +277,42 @@ static void LoadLeafShader(LPDIRECT3DDEVICE9 pDx, LPDIRECT3DVERTEXDECLARATION9& 
 			D3DDECL_END()
 	};
 
-	LPD3DXBUFFER pCode = nullptr, pError = nullptr;
-	if (D3DXAssembleShader(g_achLeafVertexProgram, sizeof(g_achLeafVertexProgram) - 1, nullptr, nullptr, 0, &pCode, &pError) == D3D_OK) {
-		if (pDx->CreateVertexShader((DWORD*)pCode->GetBufferPointer(), &pVertexShader) != D3D_OK) {
-			TraceError("Failed to create leaf vertex shader.");
-		}
-	}
-	else {
-		TraceError("Failed to assemble leaf vertex shader. The error reported is [ %s ].", pError ? pError->GetBufferPointer() : "unknown");
+	if (!pDx)
+	{
+		TraceError("Failed to load leaf shader: null D3D device.");
+		return;
 	}
 
-	if (FAILED(pDx->CreateVertexDeclaration(leafVertexDecl, &pVertexDecl))) {
-		TraceError("Failed to create leaf vertex declaration");
+	LPDIRECT3DVERTEXDECLARATION9 pNewVertexDecl = nullptr;
+	LPDIRECT3DVERTEXSHADER9 pNewVertexShader = nullptr;
+	LPD3DXBUFFER pCode = nullptr, pError = nullptr;
+	const HRESULT hrAssemble = D3DXAssembleShader(g_achLeafVertexProgram, sizeof(g_achLeafVertexProgram) - 1, nullptr, nullptr, 0, &pCode, &pError);
+	if (SUCCEEDED(hrAssemble) && pCode)
+	{
+		const HRESULT hrCreateShader = pDx->CreateVertexShader((DWORD*)pCode->GetBufferPointer(), &pNewVertexShader);
+		if (FAILED(hrCreateShader))
+			TraceError("Failed to create leaf vertex shader (hr=0x%08X).", hrCreateShader);
+	}
+	else
+	{
+		TraceError("Failed to assemble leaf vertex shader (hr=0x%08X). The error reported is [ %s ].", hrAssemble, pError ? pError->GetBufferPointer() : "unknown");
+	}
+
+	const HRESULT hrCreateDecl = pDx->CreateVertexDeclaration(leafVertexDecl, &pNewVertexDecl);
+	if (FAILED(hrCreateDecl))
+		TraceError("Failed to create leaf vertex declaration (hr=0x%08X).", hrCreateDecl);
+
+	if (pNewVertexDecl && pNewVertexShader)
+	{
+		SAFE_RELEASE(pVertexDecl);
+		SAFE_RELEASE(pVertexShader);
+		pVertexDecl = pNewVertexDecl;
+		pVertexShader = pNewVertexShader;
+	}
+	else
+	{
+		SAFE_RELEASE(pNewVertexDecl);
+		SAFE_RELEASE(pNewVertexShader);
 	}
 
 	SAFE_RELEASE(pCode);
