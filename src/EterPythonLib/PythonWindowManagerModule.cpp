@@ -1899,6 +1899,40 @@ PyObject * wndTextGetCursorPosition(PyObject * poSelf, PyObject * poArgs)
 	return Py_BuildValue("i", ((UI::CTextLine*)pWindow)->GetCursorPosition());
 }
 
+PyObject * wndTextSetSelection(PyObject * poSelf, PyObject * poArgs)
+{
+	UI::CWindow * pWindow;
+
+	if (!PyTuple_GetWindow(poArgs, 0, &pWindow))
+		return Py_BuildException();
+
+	int iStart;
+
+	if (!PyTuple_GetInteger(poArgs, 1, &iStart))
+		return Py_BuildException();
+
+	int iEnd;
+
+	if (!PyTuple_GetInteger(poArgs, 2, &iEnd))
+		return Py_BuildException();
+
+	((UI::CTextLine*)pWindow)->SetSelection(iStart, iEnd);
+
+	return Py_BuildNone();
+}
+
+PyObject * wndTextClearSelection(PyObject * poSelf, PyObject * poArgs)
+{
+	UI::CWindow * pWindow;
+
+	if (!PyTuple_GetWindow(poArgs, 0, &pWindow))
+		return Py_BuildException();
+
+	((UI::CTextLine*)pWindow)->ClearSelection();
+
+	return Py_BuildNone();
+}
+
 PyObject * wndNumberSetNumber(PyObject * poSelf, PyObject * poArgs)
 {
 	UI::CWindow * pWindow;
@@ -2567,6 +2601,10 @@ void initwndMgr()
 		{ "GetTextSize",				wndTextGetTextSize,					METH_VARARGS },
 		{ "ShowCursor",					wndTextShowCursor,					METH_VARARGS },
 		{ "HideCursor",					wndTextHideCursor,					METH_VARARGS },
+		// MR-15: Expose text highlighting to Python
+		{ "SetSelection",				wndTextSetSelection,				METH_VARARGS },
+		{ "ClearSelection",				wndTextClearSelection,				METH_VARARGS },
+		// MR-15: -- END OF -- Expose text highlighting to Python
 		{ "GetCursorPosition",			wndTextGetCursorPosition,			METH_VARARGS },
 		// NumberLine
 		{ "SetNumber",						wndNumberSetNumber,							METH_VARARGS },

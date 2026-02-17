@@ -292,6 +292,11 @@ namespace UI
 			void HideCursor();
 			int GetCursorPosition();
 
+			// MR-15: Expose text highlighting to Python
+			void SetSelection(int iStart, int iEnd);
+			void ClearSelection();
+			// MR-15: -- END OF -- Expose text highlighting to Python
+
 			void SetText(const char * c_szText);
 			const char * GetText();
 			
