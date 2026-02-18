@@ -4031,16 +4031,21 @@ bool CPythonNetworkStream::SendClientVersionPacket()
 bool CPythonNetworkStream::RecvAffectAddPacket()
 {
 	TPacketGCAffectAdd kAffectAdd;
+
 	if (!Recv(sizeof(kAffectAdd), &kAffectAdd))
 		return false;
 
 	TPacketAffectElement & rkElement = kAffectAdd.elem;
+
 	if (rkElement.bPointIdxApplyOn == POINT_ENERGY)
 	{
 		CPythonPlayer::instance().SetStatus (POINT_ENERGY_END_TIME, CPythonApplication::Instance().GetServerTimeStamp() + rkElement.lDuration);
 		__RefreshStatus();
 	}
-	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "BINARY_NEW_AddAffect", Py_BuildValue("(iiii)", rkElement.dwType, rkElement.bPointIdxApplyOn, rkElement.lApplyValue, rkElement.lDuration));
+
+	// MR-16: Classic affect duration countdown
+	PyCallClassMemberFunc(m_apoPhaseWnd[PHASE_WINDOW_GAME], "BINARY_NEW_AddAffect", Py_BuildValue("(iiiii)", rkElement.dwType, rkElement.bPointIdxApplyOn, rkElement.lApplyValue, rkElement.lDuration, rkElement.dwFlag));
+	// MR-16: -- END OF -- Classic affect duration countdown
 
 	return true;
 }

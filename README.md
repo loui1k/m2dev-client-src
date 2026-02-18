@@ -16,7 +16,8 @@ This repository contains the source code necessary to compile the game client ex
 
 ## 📋 Changelog
 ### 🐛 Bug fixes
- - **Fog update**: Adjusted fog settings to work with the updated official version using the 3 classic options.
+ - **Affect tooltips**: ALL affects now display realtime countdowns, titles and are wrapped in tooltips! Realtime countdowns does not apply to infinite affects such as the Exorcism Scroll, the Concentrated Reading and the Medal of the Dragon (Death penalty prevention)
+ - **AFFECT_FIRE**: The Continuous Fire debuff has been added to the affects dictionary by name.
 
 <br>
 <br>

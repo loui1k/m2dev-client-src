@@ -1461,6 +1461,9 @@ void initchr()
 	PyModule_AddIntConstant(poModule, "AFFECT_KWAESOK",						CInstanceBase::AFFECT_KWAESOK);
 	PyModule_AddIntConstant(poModule, "AFFECT_HEUKSIN",						CInstanceBase::AFFECT_HEUKSIN);
 	PyModule_AddIntConstant(poModule, "AFFECT_MUYEONG",						CInstanceBase::AFFECT_MUYEONG);
+	// MR-16: Added missing AFFECT_FIRE to Affects Shower
+	PyModule_AddIntConstant(poModule, "AFFECT_FIRE",						CInstanceBase::AFFECT_FIRE);
+	// MR-16: -- END OF -- Added missing AFFECT_FIRE to Affects Shower
 	PyModule_AddIntConstant(poModule, "AFFECT_GICHEON",						CInstanceBase::AFFECT_GICHEON);
 	PyModule_AddIntConstant(poModule, "AFFECT_JEUNGRYEOK",					CInstanceBase::AFFECT_JEUNGRYEOK);
 	PyModule_AddIntConstant(poModule, "AFFECT_PABEOP",						CInstanceBase::AFFECT_PABEOP);
