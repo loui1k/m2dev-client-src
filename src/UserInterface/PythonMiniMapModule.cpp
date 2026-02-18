@@ -286,6 +286,20 @@ PyObject* miniMapUnregisterAtlasWindow(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildNone();
 }
 
+PyObject* miniMapSetAtlasScale(PyObject* poSelf, PyObject* poArgs)
+{
+	float fx;
+	if (!PyTuple_GetFloat(poArgs, 0, &fx))
+		return Py_BuildException();
+
+	float fy;
+	if (!PyTuple_GetFloat(poArgs, 1, &fy))
+		return Py_BuildException();
+
+	CPythonMiniMap::Instance().SetAtlasScale(fx, fy);
+	return Py_BuildNone();
+}
+
 PyObject* miniMapGetGuildAreaID(PyObject* poSelf, PyObject* poArgs)
 {
 	float fx;
@@ -339,6 +353,7 @@ void initMiniMap()
 		{ "UnregisterAtlasWindow",			miniMapUnregisterAtlasWindow,					METH_VARARGS },
 
 		{ "GetGuildAreaID",					miniMapGetGuildAreaID,							METH_VARARGS },
+		{ "SetAtlasScale",					miniMapSetAtlasScale,							METH_VARARGS },
 
 		{ NULL, NULL },
 	};

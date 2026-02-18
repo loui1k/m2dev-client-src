@@ -711,8 +711,9 @@ void CPythonMiniMap::RegisterAtlasMark(BYTE byType, const char * c_szName, long 
 	aAtlasMarkInfo.m_fY = float(ly);
 	aAtlasMarkInfo.m_strText = c_szName;
 
-	aAtlasMarkInfo.m_fScreenX = aAtlasMarkInfo.m_fX / m_fAtlasMaxX * m_fAtlasImageSizeX - (float)m_WhiteMark.GetWidth() / 2.0f;
-	aAtlasMarkInfo.m_fScreenY = aAtlasMarkInfo.m_fY / m_fAtlasMaxY * m_fAtlasImageSizeY - (float)m_WhiteMark.GetHeight() / 2.0f;
+	__GlobalPositionToAtlasPosition(lx, ly, &aAtlasMarkInfo.m_fScreenX, &aAtlasMarkInfo.m_fScreenY);
+	aAtlasMarkInfo.m_fScreenX -= (float)m_WhiteMark.GetWidth() / 2.0f;
+	aAtlasMarkInfo.m_fScreenY -= (float)m_WhiteMark.GetHeight() / 2.0f;
 
 	switch(byType)
 	{
@@ -807,6 +808,22 @@ void CPythonMiniMap::DeleteTarget(int iID)
 	RemoveWayPoint(iID);
 }
 
+void CPythonMiniMap::SetAtlasScale(float fx, float fy)
+{
+	m_AtlasImageInstance.SetScale(fx, fy);
+
+	m_fAtlasImageSizeX = float(m_AtlasImageInstance.GetWidth()) * fx;
+	m_fAtlasImageSizeY = float(m_AtlasImageInstance.GetHeight()) * fy;
+	
+	ComputeAtlasCenteringOffsets();
+}
+
+void CPythonMiniMap::ClearAtlasMarks()
+{
+	ClearAtlasMarkInfo();
+	ClearGuildArea();
+}
+
 bool CPythonMiniMap::LoadAtlas()
 {
 	CPythonBackground& rkBG=CPythonBackground::Instance();
@@ -850,16 +867,42 @@ bool CPythonMiniMap::LoadAtlas()
 	m_fAtlasImageSizeX = (float) m_AtlasImageInstance.GetWidth();
 	m_fAtlasImageSizeY = (float) m_AtlasImageInstance.GetHeight();
 
+	ComputeAtlasCenteringOffsets();
+	
+	ClearAtlasMarks();
+
 	if (m_bShowAtlas)
 		OpenAtlasWindow();
 
 	return true;
 }
 
+void CPythonMiniMap::ComputeAtlasCenteringOffsets()
+{
+	float fScaleX = m_fAtlasImageSizeX / m_fAtlasMaxX;
+	float fScaleY = m_fAtlasImageSizeY / m_fAtlasMaxY;
+	float fUniformScale = std::min(fScaleX, fScaleY);
+	
+	float fScaledMapWidth = m_fAtlasMaxX * fUniformScale;
+	float fScaledMapHeight = m_fAtlasMaxY * fUniformScale;
+	
+	m_fAtlasOffsetX = (m_fAtlasImageSizeX - fScaledMapWidth) * 0.5f;
+	m_fAtlasOffsetY = (m_fAtlasImageSizeY - fScaledMapHeight) * 0.5f;
+}
+
+float CPythonMiniMap::GetAtlasUniformScale() const
+{
+	float fScaleX = m_fAtlasImageSizeX / m_fAtlasMaxX;
+	float fScaleY = m_fAtlasImageSizeY / m_fAtlasMaxY;
+	return std::min(fScaleX, fScaleY);
+}
+
 void CPythonMiniMap::__GlobalPositionToAtlasPosition(long lx, long ly, float * pfx, float * pfy)
 {
-	*pfx = lx / m_fAtlasMaxX * m_fAtlasImageSizeX;
-	*pfy = ly / m_fAtlasMaxY * m_fAtlasImageSizeY;
+	float fUniformScale = GetAtlasUniformScale();
+	
+	*pfx = lx * fUniformScale + m_fAtlasOffsetX;
+	*pfy = ly * fUniformScale + m_fAtlasOffsetY;
 }
 
 void CPythonMiniMap::UpdateAtlas()
@@ -878,8 +921,10 @@ void CPythonMiniMap::UpdateAtlas()
 		while(fRotation < 0.0f)
 			fRotation += 360.0f;
 
-		m_AtlasPlayerMark.SetPosition(kInstPos.x / m_fAtlasMaxX * m_fAtlasImageSizeX - (float)m_AtlasPlayerMark.GetWidth() / 2.0f,
-			kInstPos.y / m_fAtlasMaxY * m_fAtlasImageSizeY - (float)m_AtlasPlayerMark.GetHeight() / 2.0f);
+		float fPlayerX, fPlayerY;
+		__GlobalPositionToAtlasPosition((long)kInstPos.x, (long)kInstPos.y, &fPlayerX, &fPlayerY);
+		m_AtlasPlayerMark.SetPosition(fPlayerX - (float)m_AtlasPlayerMark.GetWidth() / 2.0f,
+			fPlayerY - (float)m_AtlasPlayerMark.GetHeight() / 2.0f);
 		m_AtlasPlayerMark.SetRotation(fRotation);
 	}
 
@@ -1057,14 +1102,25 @@ bool CPythonMiniMap::GetPickedInstanceInfo(float fScreenX, float fScreenY, std::
 }
 
 
+void CPythonMiniMap::__AtlasPositionToGlobalPosition(float fAtlasX, float fAtlasY, float* pfWorldX, float* pfWorldY) const
+{
+	float fReverseScale = 1.0f / GetAtlasUniformScale();
+	
+	*pfWorldX = (fAtlasX - m_fAtlasOffsetX) * fReverseScale;
+	*pfWorldY = (fAtlasY - m_fAtlasOffsetY) * fReverseScale;
+}
+
 bool CPythonMiniMap::GetAtlasInfo(float fScreenX, float fScreenY, std::string & rReturnString, float * pReturnPosX, float * pReturnPosY, DWORD * pdwTextColor, DWORD * pdwGuildID)
 {
-	float fRealX = (fScreenX - m_fAtlasScreenX) * (m_fAtlasMaxX / m_fAtlasImageSizeX);
-	float fRealY = (fScreenY - m_fAtlasScreenY) * (m_fAtlasMaxY / m_fAtlasImageSizeY);
-
-	//((float) CTerrainImpl::CELLSCALE) * 10.0f
-	float fCheckWidth = (m_fAtlasMaxX / m_fAtlasImageSizeX) * 5.0f;
-	float fCheckHeight = (m_fAtlasMaxY / m_fAtlasImageSizeY) * 5.0f;
+	float fLocalX = fScreenX - m_fAtlasScreenX;
+	float fLocalY = fScreenY - m_fAtlasScreenY;
+	
+	float fRealX, fRealY;
+	__AtlasPositionToGlobalPosition(fLocalX, fLocalY, &fRealX, &fRealY);
+	
+	float fReverseScale = 1.0f / GetAtlasUniformScale();
+	float fCheckWidth = fReverseScale * 5.0f;
+	float fCheckHeight = fReverseScale * 5.0f;
 	
 	CInstanceBase * pkInst = CPythonCharacterManager::Instance().GetMainInstancePtr();
 
@@ -1242,8 +1298,7 @@ void CPythonMiniMap::__UpdateWayPoint(TAtlasMarkInfo * pkInfo, int ix, int iy)
 {
 	pkInfo->m_fX = float(ix);
 	pkInfo->m_fY = float(iy);
-	pkInfo->m_fScreenX = pkInfo->m_fX / m_fAtlasMaxX * m_fAtlasImageSizeX;
-	pkInfo->m_fScreenY = pkInfo->m_fY / m_fAtlasMaxY * m_fAtlasImageSizeY;
+	__GlobalPositionToAtlasPosition(ix, iy, &pkInfo->m_fScreenX, &pkInfo->m_fScreenY);
 }
 
 // WayPoint
@@ -1382,6 +1437,9 @@ void CPythonMiniMap::__Initialize()
 
 	m_fAtlasScreenX = 0.0f;
 	m_fAtlasScreenY = 0.0f;
+	
+	m_fAtlasOffsetX = 0.0f;
+	m_fAtlasOffsetY = 0.0f;
 
 	m_dwAtlasBaseX = 0;
 	m_dwAtlasBaseY = 0;

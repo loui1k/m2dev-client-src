@@ -1484,4 +1484,10 @@ void initapp()
 #else
 	PyModule_AddIntConstant(poModule, "ENABLE_NEW_EQUIPMENT_SYSTEM",	0);
 #endif
+
+#ifdef ENABLE_ATLAS_SCALE
+	PyModule_AddIntConstant(poModule, "ENABLE_ATLAS_SCALE",	1);
+#else
+	PyModule_AddIntConstant(poModule, "ENABLE_ATLAS_SCALE",	0);
+#endif
 }

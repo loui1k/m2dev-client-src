@@ -81,6 +81,10 @@ class CPythonMiniMap : public CScreen, public CSingleton<CPythonMiniMap>
 		void UnregisterAtlasWindow();
 		void OpenAtlasWindow();
 		void SetAtlasCenterPosition(int x, int y);
+		void SetAtlasScale(float fx, float fy);
+
+		// Atlas Marks
+		void ClearAtlasMarks();
 
 		// NPC List
 		void ClearAtlasMarkInfo();
@@ -106,6 +110,9 @@ class CPythonMiniMap : public CScreen, public CSingleton<CPythonMiniMap>
 		void __RenderTargetMark(int ixCenter, int iyCenter);
 
 		void __GlobalPositionToAtlasPosition(long lx, long ly, float * pfx, float * pfy);
+		void __AtlasPositionToGlobalPosition(float fAtlasX, float fAtlasY, float* pfWorldX, float* pfWorldY) const;
+		void ComputeAtlasCenteringOffsets();
+		float GetAtlasUniformScale() const;
 
 	protected:
 		// Atlas
@@ -208,7 +215,7 @@ class CPythonMiniMap : public CScreen, public CSingleton<CPythonMiniMap>
 		D3DXMATRIX						m_matMiniMapCover;
 
 		bool							m_bShowAtlas;
-		CGraphicImageInstance			m_AtlasImageInstance;
+		CGraphicExpandedImageInstance	m_AtlasImageInstance;
 		D3DXMATRIX						m_matWorldAtlas;
 		CGraphicExpandedImageInstance	m_AtlasPlayerMark;
 
@@ -217,6 +224,9 @@ class CPythonMiniMap : public CScreen, public CSingleton<CPythonMiniMap>
 
 		DWORD							m_dwAtlasBaseX;
 		DWORD							m_dwAtlasBaseY;
+		
+		float							m_fAtlasOffsetX;
+		float							m_fAtlasOffsetY;
 
 		float							m_fAtlasMaxX;
 		float							m_fAtlasMaxY;
