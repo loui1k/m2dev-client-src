@@ -125,7 +125,7 @@ bool CLZObject::BeginDecompress(const void * pvIn)
 
 bool CLZObject::Decompress(DWORD * pdwKey)
 {
-	UINT uiSize;
+	lzo_uint uiSize;
 	int r;
 
 	if (m_pHeader->dwEncryptSize)

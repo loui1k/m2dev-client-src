@@ -47,6 +47,11 @@ class CGraphicTextInstance
 		void ShowCursor();
 		void HideCursor();
 
+		// MR-15: Expose text highlighting to Python
+		void SetSelection(int iStart, int iEnd);
+		void ClearSelection();
+		// MR-15: -- END OF -- Expose text highlighting to Python
+
 		void ShowOutLine();
 		void HideOutLine();
 
@@ -119,6 +124,9 @@ class CGraphicTextInstance
 		bool m_isCursor;
 		bool m_isSecret;
 		bool m_isMultiLine;
+
+		int m_selStart;
+		int m_selEnd;
 
 		bool m_isOutline;
 		float m_fFontFeather;

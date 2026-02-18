@@ -793,10 +793,22 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 	}
 
 	// --- Selection background (Ctrl+A / shift-select) ---
-	if (m_isCursor && CIME::ms_bCaptureInput)
+	// MR-15: Expose text selection highlighting to Python
 	{
-		int selBegin = CIME::GetSelBegin();
-		int selEnd = CIME::GetSelEnd();
+		// Determine selection range: IME state for active input fields, local state otherwise
+		int selBegin, selEnd;
+
+		if (m_isCursor && CIME::ms_bCaptureInput)
+		{
+			selBegin = CIME::GetSelBegin();
+			selEnd = CIME::GetSelEnd();
+		}
+		else
+		{
+			selBegin = m_selStart;
+			selEnd = m_selEnd;
+		}
+		// MR-15: -- END OF -- Expose text selection highlighting to Python
 
 		if (selBegin > selEnd) std::swap(selBegin, selEnd);
 
@@ -819,16 +831,38 @@ void CGraphicTextInstance::Render(RECT * pClipRect)
 			__GetTextPos(visualSelEnd,   &ex, &sy);
 
 			// Handle RTL - use the computed direction for this text instance
+			// MR-15: Expose text highlighting to Python
+			// Apply horizontal alignment (must match text rendering offset)
+			float alignOffset = 0.0f;
+
 			if (m_computedRTL)
 			{
-				sx += m_v3Position.x - m_textWidth;
-				ex += m_v3Position.x - m_textWidth;
+				switch (m_hAlign)
+				{
+					case HORIZONTAL_ALIGN_LEFT:
+						alignOffset = -(float)m_textWidth;
+						break;
+					case HORIZONTAL_ALIGN_CENTER:
+						alignOffset = -float(m_textWidth / 2);
+						break;
+				}
 			}
 			else
 			{
-				sx += m_v3Position.x;
-				ex += m_v3Position.x;
+				switch (m_hAlign)
+				{
+					case HORIZONTAL_ALIGN_RIGHT:
+						alignOffset = -(float)m_textWidth;
+						break;
+					case HORIZONTAL_ALIGN_CENTER:
+						alignOffset = -float(m_textWidth / 2);
+						break;
+				}
 			}
+
+			sx += m_v3Position.x + alignOffset;
+			ex += m_v3Position.x + alignOffset;
+			// MR-15: -- END OF -- Expose text highlighting to Python
 
 			// Apply vertical alignment
 			float top = m_v3Position.y;
@@ -1076,6 +1110,18 @@ void CGraphicTextInstance::HideCursor()
 	m_isCursor = false;
 }
 
+void CGraphicTextInstance::SetSelection(int iStart, int iEnd)
+{
+	m_selStart = iStart;
+	m_selEnd = iEnd;
+}
+
+void CGraphicTextInstance::ClearSelection()
+{
+	m_selStart = 0;
+	m_selEnd = 0;
+}
+
 void CGraphicTextInstance::ShowOutLine()
 {
 	m_isOutline = true;
@@ -1319,6 +1365,9 @@ void CGraphicTextInstance::__Initialize()
 	m_isCursor = false;
 	m_isSecret = false;
 	m_isMultiLine = false;
+
+	m_selStart = 0;
+	m_selEnd = 0;
 
 	m_isOutline = false;
 	m_fFontFeather = c_fFontFeather;

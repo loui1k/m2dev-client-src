@@ -1126,6 +1126,18 @@ namespace UI
 		return m_TextInstance.PixelPositionToCharacterPosition(lx);
 	}
 
+	// MR-15: Expose text highlighting to Python
+	void CTextLine::SetSelection(int iStart, int iEnd)
+	{
+		m_TextInstance.SetSelection(iStart, iEnd);
+	}
+
+	void CTextLine::ClearSelection()
+	{
+		m_TextInstance.ClearSelection();
+	}
+	// MR-15: -- END OF -- Expose text highlighting to Python
+
 	void CTextLine::SetBaseDirection(int iDir)
 	{
 		if (iDir == 2)
