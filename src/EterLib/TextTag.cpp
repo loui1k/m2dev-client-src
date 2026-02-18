@@ -134,6 +134,9 @@ int GetTextTagInternalPosFromRenderPos(const wchar_t * src, int src_len, int off
         i += len;
     }
 
+    if (offset >= output_len)
+		return src_len;
+
 	return internal_offset;
 }
 

@@ -251,6 +251,21 @@ PyObject* imePasteReturn(PyObject * poSelf, PyObject * poArgs)
 	return Py_BuildNone();
 }
 
+PyObject* imeSetSecretMode(PyObject * poSelf, PyObject * poArgs)
+{
+	int iFlag;
+	if (!PyTuple_GetInteger(poArgs, 0, &iFlag))
+		return Py_BuildException();
+
+	CPythonIME::SetSecretMode(iFlag != 0);
+	return Py_BuildNone();
+}
+
+PyObject* imeIsSecretMode(PyObject * poSelf, PyObject * poArgs)
+{
+	return Py_BuildValue("i", CPythonIME::IsSecretMode() ? 1 : 0);
+}
+
 void initime()
 {
 	static PyMethodDef s_methods[] =
@@ -293,6 +308,8 @@ void initime()
 		{ "CutSelection",			imeCutSelection,			METH_VARARGS },
 		{ "CopySelection",			imeCopySelectionToClipboard,METH_VARARGS },
 		{ "EnablePaste",			imeEnablePaste,				METH_VARARGS },
+		{ "SetSecretMode",			imeSetSecretMode,			METH_VARARGS },
+		{ "IsSecretMode",			imeIsSecretMode,			METH_VARARGS },
 
 		{ NULL,						NULL,						NULL		 },
 	};	

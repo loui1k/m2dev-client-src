@@ -1280,9 +1280,12 @@ int CGraphicTextInstance::PixelPositionToCharacterPosition(int iPixelPosition)
 		if (adv <= 0)
 			adv = pCurCharInfo->width;
 
+		int charStart = icurPosition;
 		icurPosition += adv;
 
-		if (adjustedPixelPos < icurPosition)
+		int charMid = charStart + adv / 2;
+
+		if (adjustedPixelPos < charMid)
 		{
 			visualPos = i;
 			break;

@@ -27,6 +27,9 @@ public:
 
 	void Create(HWND hWnd);
 
+	static void SetSecretMode(bool bSecret);
+	static bool IsSecretMode();
+
 protected:
 	virtual void OnTab();
 	virtual void OnReturn();
@@ -39,4 +42,6 @@ protected:
 	virtual void OnOpenReadingWnd();
 	virtual void OnCloseReadingWnd();
 
+private:
+	static bool ms_bSecretMode;
 };

@@ -2,6 +2,8 @@
 #include "PythonIME.h"
 #include "AbstractApplication.h"
 
+bool CPythonIME::ms_bSecretMode = false;
+
 CPythonIME::CPythonIME()
 : CIME()
 {
@@ -99,7 +101,10 @@ bool CPythonIME::OnWM_CHAR(WPARAM wParam, LPARAM lParam)
 			case 0x03: // Ctrl+C
 				if (ms_bCaptureInput)
 				{
-					CopySelectionToClipboard();
+					if (!ms_bSecretMode)
+					{
+						CopySelectionToClipboard();
+					}
 					return true;
 				}
 				return false;
@@ -184,16 +189,32 @@ void CPythonIME::DeleteSelection()
 
 void CPythonIME::CopySelectionToClipboard()
 {
+	if (ms_bSecretMode)
+		return;
+
 	CIME::CopySelectionToClipboard(ms_hWnd);
 }
 
 void CPythonIME::CutSelection()
 {
-	CIME::CopySelectionToClipboard(ms_hWnd);
+	if (!ms_bSecretMode)
+	{
+		CIME::CopySelectionToClipboard(ms_hWnd);
+	}
 	CIME::DeleteSelection();
 }
 
 void CPythonIME::PasteTextFromClipBoard()
 {
 	CIME::PasteTextFromClipBoard();
+}
+
+void CPythonIME::SetSecretMode(bool bSecret)
+{
+	ms_bSecretMode = bSecret;
+}
+
+bool CPythonIME::IsSecretMode()
+{
+	return ms_bSecretMode;
 }
