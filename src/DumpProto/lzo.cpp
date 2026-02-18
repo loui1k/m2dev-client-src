@@ -125,7 +125,7 @@ bool CLZObject::BeginDecompress(const void * pvIn)
 
 bool CLZObject::Decompress(DWORD * pdwKey)
 {
-	UINT uiSize;
+	lzo_uint uiSize;
 	int r;
 
 	if (m_pHeader->dwEncryptSize)
@@ -138,7 +138,7 @@ bool CLZObject::Decompress(DWORD * pdwKey)
 			return false;
 		}
 
-		if (LZO_E_OK != (r = lzo1x_decompress(pbDecryptedBuffer + sizeof(DWORD), m_pHeader->dwCompressedSize, m_pbBuffer, (lzo_uint*)&uiSize, NULL)))
+		if (LZO_E_OK != (r = lzo1x_decompress(pbDecryptedBuffer + sizeof(DWORD), m_pHeader->dwCompressedSize, m_pbBuffer, &uiSize, NULL)))
 		{
 			fprintf(stderr, "LZObject: Decompress failed(decrypt) ret %d\n", r);
 			return false;
@@ -150,7 +150,7 @@ bool CLZObject::Decompress(DWORD * pdwKey)
 	{
 		uiSize = m_pHeader->dwRealSize;
 
-		if (LZO_E_OK != (r = lzo1x_decompress_safe(m_pbIn, m_pHeader->dwCompressedSize, m_pbBuffer, (lzo_uint*)&uiSize, NULL)))
+		if (LZO_E_OK != (r = lzo1x_decompress_safe(m_pbIn, m_pHeader->dwCompressedSize, m_pbBuffer, &uiSize, NULL)))
 		{
 			fprintf(stderr, "LZObject: Decompress failed : ret %d, CompressedSize %d\n", r, m_pHeader->dwCompressedSize);
 			return false;
