@@ -33,6 +33,12 @@ PyObject * chrmgrRegisterTitleName(PyObject* poSelf, PyObject* poArgs)
 	return Py_BuildNone();
 }
 
+PyObject * chrmgrRefreshAllPCTextTail(PyObject* poSelf, PyObject* poArgs)
+{
+	CPythonCharacterManager::Instance().RefreshAllPCTextTail();
+	return Py_BuildNone();
+}
+
 PyObject * chrmgrRegisterNameColor(PyObject* poSelf, PyObject* poArgs)
 {	
 	int index;
@@ -756,6 +762,7 @@ void initchrmgr()
 		{ "SetHorseDustGap",			chrmgrSetHorseDustGap,					METH_VARARGS },
 
 		{ "RegisterTitleName",			chrmgrRegisterTitleName,				METH_VARARGS },
+		{ "RefreshAllPCTextTail",		chrmgrRefreshAllPCTextTail,				METH_VARARGS },
 		{ "RegisterNameColor",			chrmgrRegisterNameColor,				METH_VARARGS },
 		{ "RegisterTitleColor",			chrmgrRegisterTitleColor,				METH_VARARGS },
 
